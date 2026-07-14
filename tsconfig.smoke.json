@@ -1,0 +1,11 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "outDir": "./out-tsc/smoke",
+    "types": [],
+    "paths": {
+      "ngx-devextreme-zoneless": ["./src/public-api.ts"]
+    }
+  },
+  "include": ["smoke/src/**/*.ts", "src/**/*.ts"]
+}
