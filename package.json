@@ -1,7 +1,7 @@
 {
   "name": "ngx-devextreme-zoneless",
   "version": "1.0.0",
-  "private": true,
+  "private": false,
   "description": "Strongly-typed signal & zoneless change-detection adapters for DevExtreme Angular components",
   "license": "MIT",
   "author": "Ricardo Gross",
