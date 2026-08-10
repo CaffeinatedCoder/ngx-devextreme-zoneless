@@ -10,7 +10,7 @@ import {
     DxBindingDirectiveBase,
     DxSelectedIndexDirectiveBase,
     DxSelectedItemKeysDirectiveBase,
-} from './bases';
+} from 'ngx-devextreme-zoneless/core';
 
 /** `[(dxSelectedIndex)]` for `dx-tabs`. */
 @Directive({ selector: 'dx-tabs[dxSelectedIndex]', exportAs: 'dxSelectedIndex' })

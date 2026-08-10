@@ -4,13 +4,13 @@ import {
     dxOptionAdapter,
     type DxBindingAdapter,
     type DxBindingOptions,
-} from '../core/binding';
-import { dxStructuralEquals, type DxEqualityFn } from '../core/equality';
+} from './binding';
+import { dxStructuralEquals, type DxEqualityFn } from './equality';
 import type {
     DxHostComponent,
     DxHostOptionName,
     DxInstanceOf,
-} from '../core/types';
+} from './types';
 
 /**
  * Abstract base directives for the concrete per-component adapter directives.

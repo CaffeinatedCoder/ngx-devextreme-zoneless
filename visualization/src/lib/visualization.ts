@@ -1,5 +1,4 @@
 import {
-    DestroyRef,
     Directive,
     inject,
     input,
@@ -10,11 +9,18 @@ import {
 import { DxChartComponent } from 'devextreme-angular/ui/chart';
 import { DxPieChartComponent } from 'devextreme-angular/ui/pie-chart';
 import { DxRangeSelectorComponent } from 'devextreme-angular/ui/range-selector';
-import type { DxBindingAdapter } from '../core/binding';
-import { dxStructuralEquals } from '../core/equality';
-import { onDxWidgetReady } from '../core/ready';
-import type { DxHostComponent, DxHostValue, DxInstanceOf, DxWidget } from '../core/types';
-import { DxBindingDirectiveBase, DxValueDirectiveBase } from './bases';
+import {
+    DxBindingDirectiveBase,
+    DxValueDirectiveBase,
+    dxStructuralEquals,
+    onDxWidgetReady,
+    type DxAdapterEventName,
+    type DxBindingAdapter,
+    type DxHostComponent,
+    type DxHostValue,
+    type DxInstanceOf,
+    type DxWidget,
+} from 'ngx-devextreme-zoneless/core';
 
 /** An argument/value as used by chart points. */
 export type DxChartPointValue = string | number | Date;
@@ -52,7 +58,11 @@ function chartSelectionAdapter<TInstance extends DxWidget & ChartLike>(): DxBind
     readonly DxChartSelectedPoint[]
 > {
     return {
-        events: ['pointSelectionChanged'],
+        // `pointSelectionChanged` exists on every chart-family widget; the
+        // cast is only needed because `TInstance` is an unresolved type
+        // parameter here. The name is pinned as a positive control in
+        // `examples/type-tests.ts`, so a DevExtreme rename still fails CI.
+        events: ['pointSelectionChanged'] as unknown as readonly DxAdapterEventName<TInstance>[],
         read: (instance) =>
             instance.getAllSeries().flatMap((series) =>
                 series
@@ -110,7 +120,6 @@ function attachPointClickToggle<THost extends DxHostComponent>(
     host: THost,
     enabled: Signal<boolean>,
 ): void {
-    const destroyRef = inject(DestroyRef);
     onDxWidgetReady(host, (instance) => {
         const handler = (eventArgs: unknown): void => {
             if (!untracked(enabled)) {
@@ -127,7 +136,7 @@ function attachPointClickToggle<THost extends DxHostComponent>(
             }
         };
         instance.on('pointClick', handler);
-        destroyRef.onDestroy(() => instance.off('pointClick', handler));
+        return () => instance.off('pointClick', handler);
     });
 }
 

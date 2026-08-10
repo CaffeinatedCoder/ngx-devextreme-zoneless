@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "outDir": "./out-tsc/probe",
+    "types": [],
+    "paths": {
+      "ngx-devextreme-zoneless": ["./dist"],
+      "ngx-devextreme-zoneless/*": ["./dist/*"]
+    }
+  },
+  "include": ["probe/src/**/*.ts"]
+}

@@ -5,7 +5,11 @@
     "declaration": true,
     "declarationMap": true,
     "inlineSources": true,
-    "types": []
+    "types": [],
+    // ng-packagr wires imports between entry points to their *built* outputs
+    // itself — the source path mappings from the base config must not shadow
+    // that, or entry points would recompile each other's sources.
+    "paths": {}
   },
   "angularCompilerOptions": {
     "compilationMode": "partial"

@@ -2,10 +2,16 @@
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "noEmit": true,
-    "types": [],
-    "paths": {
-      "ngx-devextreme-zoneless": ["./src/public-api.ts"]
-    }
+    "types": []
   },
-  "include": ["src/**/*.ts", "examples/**/*.ts"]
+  "include": [
+    "src/**/*.ts",
+    "core/**/*.ts",
+    "editors/**/*.ts",
+    "navigation/**/*.ts",
+    "overlays/**/*.ts",
+    "data/**/*.ts",
+    "visualization/**/*.ts",
+    "examples/**/*.ts"
+  ]
 }

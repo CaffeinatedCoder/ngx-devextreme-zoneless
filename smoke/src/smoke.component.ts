@@ -1,5 +1,7 @@
-import { Component, effect, signal, viewChild } from '@angular/core';
+import { Component, effect, signal, untracked, viewChild } from '@angular/core';
 import { JsonPipe } from '@angular/common';
+import CustomStore from 'devextreme/data/custom_store';
+import DataSource from 'devextreme/data/data_source';
 import { DxChartModule } from 'devextreme-angular/ui/chart';
 import { DxCheckBoxModule } from 'devextreme-angular/ui/check-box';
 import { DxDataGridModule } from 'devextreme-angular/ui/data-grid';
@@ -9,13 +11,22 @@ import { DxSliderModule } from 'devextreme-angular/ui/slider';
 import { DxTabsModule } from 'devextreme-angular/ui/tabs';
 import { DxTextBoxComponent, DxTextBoxModule } from 'devextreme-angular/ui/text-box';
 import {
+    bindDxOption,
     DX_SIGNAL_DIRECTIVES,
+    dxArrayStoreSource,
     dxEventSignal,
+    dxInstanceSignal,
     dxOptionSignal,
+    dxReloadOn,
     type DxChartSelectedPoint,
 } from 'ngx-devextreme-zoneless';
 
 type Status = 'Pending' | 'Shipped' | 'Delivered';
+
+interface Order {
+    readonly id: number;
+    readonly customer: string;
+}
 
 @Component({
     selector: 'app-smoke',
@@ -35,6 +46,7 @@ type Status = 'Pending' | 'Shipped' | 'Delivered';
         <h3>Editors</h3>
         <div class="row">
             <dx-text-box
+                id="text-main"
                 [(dxValue)]="text"
                 valueChangeEvent="input"
                 placeholder="type here" />
@@ -62,11 +74,11 @@ type Status = 'Pending' | 'Shipped' | 'Delivered';
             <button data-testid="tab-set" (click)="tab.set(2)">go tab 2</button>
         </div>
 
-        <h3>Grid selection</h3>
+        <h3>Grid selection (dxArrayStoreSource)</h3>
         <dx-data-grid
+            id="grid-selection"
             [(dxSelectedRowKeys)]="selectedIds"
-            [dataSource]="orders"
-            keyExpr="id"
+            [dataSource]="ordersSource"
             style="max-width:480px">
             <dxo-selection mode="multiple" />
             <dxi-column dataField="id" />
@@ -75,6 +87,28 @@ type Status = 'Pending' | 'Shipped' | 'Delivered';
         <p>
             <span class="readout" data-testid="grid-readout">{{ selectedIds() | json }}</span>
             <button data-testid="grid-set" (click)="selectedIds.set([1, 3])">select 1 &amp; 3</button>
+            <button data-testid="orders-add" (click)="addOrder()">add order</button>
+        </p>
+
+        <h3>Grid paging &amp; focused row</h3>
+        <dx-data-grid
+            id="grid-paging"
+            [(dxPageIndex)]="pageIndex"
+            [(dxFocusedRowKey)]="focusedId"
+            [dataSource]="orders()"
+            keyExpr="id"
+            [focusedRowEnabled]="true"
+            style="max-width:480px">
+            <dxo-paging [pageSize]="2" />
+            <dxo-pager [visible]="true" />
+            <dxi-column dataField="id" />
+            <dxi-column dataField="customer" />
+        </dx-data-grid>
+        <p>
+            <span class="readout" data-testid="page-readout">{{ pageIndex() }}</span>
+            <button data-testid="page-set" (click)="pageIndex.set(1)">go page 2</button>
+            <span class="readout" data-testid="focus-readout">{{ focusedId() ?? 'null' }}</span>
+            <button data-testid="focus-set" (click)="focusedId.set(2)">focus row 2</button>
         </p>
 
         <h3>Popup</h3>
@@ -82,10 +116,14 @@ type Status = 'Pending' | 'Shipped' | 'Delivered';
             <button data-testid="popup-open" (click)="popupVisible.set(true)">open popup</button>
             <span class="readout" data-testid="popup-readout">{{ popupVisible() }}</span>
         </div>
+        <!-- Animations are disabled so scripted tests can interact with the
+             popup deterministically; the visibility binding is unaffected. -->
         <dx-popup
             [(dxVisible)]="popupVisible"
             title="Smoke popup"
             [showCloseButton]="true"
+            [hideOnOutsideClick]="true"
+            [animation]="{ show: { duration: 0 }, hide: { duration: 0 } }"
             [width]="320"
             [height]="180">
             <p data-testid="popup-content">popup is open</p>
@@ -114,6 +152,41 @@ type Status = 'Pending' | 'Shipped' | 'Delivered';
             </button>
             <span class="readout" data-testid="placeholder-readout">{{ textPlaceholder() ?? '' }}</span>
         </div>
+
+        <h3>Signal-driven remote loading</h3>
+        <div class="row">
+            <input
+                data-testid="remote-filter-input"
+                placeholder="filter customers"
+                (input)="customerFilter.set($any($event.target).value)" />
+            <span class="readout" data-testid="remote-load-count">loads: {{ remoteLoadCount() }}</span>
+        </div>
+        <dx-data-grid id="grid-remote" [dataSource]="remoteSource" style="max-width:480px">
+            <dxi-column dataField="id" />
+            <dxi-column dataField="customer" />
+        </dx-data-grid>
+
+        <h3>Widget re-creation</h3>
+        <div class="row">
+            <button data-testid="recreate-toggle" (click)="showRecreate.set(!showRecreate())">
+                toggle widget
+            </button>
+            <button data-testid="recreate-set" (click)="recreateText.set('pushed-into-new-widget')">
+                set signal
+            </button>
+            <span class="readout" data-testid="recreate-instance-readout">{{
+                recreateInstance() ? 'live' : 'gone'
+            }}</span>
+            <span class="readout" data-testid="recreate-readout">{{ recreateText() ?? '' }}</span>
+        </div>
+        @if (showRecreate()) {
+            <dx-text-box
+                id="text-recreate"
+                #recreateBox
+                valueChangeEvent="input"
+                placeholder="recreated widget"
+                style="max-width: 240px" />
+        }
     `,
 })
 export class SmokeComponent {
@@ -123,16 +196,30 @@ export class SmokeComponent {
     readonly amount = signal(25);
     readonly tab = signal(0);
     readonly selectedIds = signal<readonly number[]>([]);
+    readonly pageIndex = signal(0);
+    readonly focusedId = signal<number | null>(null);
     readonly popupVisible = signal(false);
     readonly points = signal<readonly DxChartSelectedPoint[]>([]);
 
     readonly statuses: Status[] = ['Pending', 'Shipped', 'Delivered'];
     readonly tabs = ['One', 'Two', 'Three'];
-    readonly orders = [
+
+    // Data-in: the orders live in a signal; dxArrayStoreSource turns it into
+    // a DataSource that reloads whenever the signal changes.
+    readonly orders = signal<readonly Order[]>([
         { id: 1, customer: 'Acme' },
         { id: 2, customer: 'Globex' },
         { id: 3, customer: 'Initech' },
-    ];
+    ]);
+    readonly ordersSource = dxArrayStoreSource(this.orders, { key: 'id' });
+
+    // Data-in, remote style: a CustomStore standing in for a remote endpoint;
+    // the external filter signal drives reloads via dxReloadOn — the
+    // component contains no hand-written refresh() plumbing.
+    readonly customerFilter = signal('');
+    readonly remoteLoadCount = signal(0);
+    readonly remoteSource = this.createRemoteSource();
+
     readonly chartData = [
         { month: 'Jan', amount: 12 },
         { month: 'Feb', amount: 15 },
@@ -147,6 +234,14 @@ export class SmokeComponent {
     private readonly focusIn = dxEventSignal(this.textBox, 'focusIn');
     readonly focusInCount = signal(0);
 
+    // Widget re-creation — composition API bindings on an `@if`-wrapped
+    // widget must re-attach when the widget is destroyed and re-created,
+    // and the surviving signal state must be restored into the new widget.
+    readonly showRecreate = signal(true);
+    private readonly recreateBox = viewChild('recreateBox', { read: DxTextBoxComponent });
+    readonly recreateText = signal<string | undefined>('persisted');
+    readonly recreateInstance = dxInstanceSignal(this.recreateBox);
+
     constructor() {
         // Count focusIn events — demonstrates deriving state from dxEventSignal.
         effect(() => {
@@ -154,5 +249,28 @@ export class SmokeComponent {
                 this.focusInCount.update((count) => count + 1);
             }
         });
+        bindDxOption(this.recreateBox, 'value', this.recreateText);
+    }
+
+    addOrder(): void {
+        this.orders.update((list) => [...list, { id: list.length + 1, customer: 'Umbrella' }]);
+    }
+
+    private createRemoteSource(): DataSource<Order, number> {
+        const source = new DataSource<Order, number>({
+            store: new CustomStore<Order, number>({
+                key: 'id',
+                loadMode: 'raw',
+                load: async () => {
+                    this.remoteLoadCount.update((count) => count + 1);
+                    const filter = untracked(this.customerFilter).toLowerCase();
+                    return untracked(this.orders).filter((order) =>
+                        order.customer.toLowerCase().includes(filter),
+                    ) as Order[];
+                },
+            }),
+        });
+        dxReloadOn(source, [this.customerFilter]);
+        return source;
     }
 }

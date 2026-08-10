@@ -1,6 +1,5 @@
 import {
     assertInInjectionContext,
-    DestroyRef,
     effect,
     inject,
     Injector,
@@ -10,14 +9,19 @@ import {
 import { dxStructuralEquals, type DxEqualityFn } from './equality';
 import { onDxWidgetReady } from './ready';
 import type {
+    DxEventName,
     DxHostComponent,
     DxHostOptionName,
     DxHostOptionValue,
     DxHostRef,
     DxInstanceOf,
     DxOptionChangedArgs,
+    DxPropertiesOf,
     DxWidget,
 } from './types';
+
+/** The event names of a widget *instance*, derived from its `Properties` bag. */
+export type DxAdapterEventName<TInstance> = DxEventName<DxPropertiesOf<TInstance>>;
 
 /**
  * Describes how a bound value is read from / written to a widget and which
@@ -28,14 +32,19 @@ import type {
  * selection.
  */
 export interface DxBindingAdapter<TInstance extends DxWidget, TValue> {
-    /** Widget events (`'optionChanged'`, `'selectionChanged'`, ...) that may affect the bound value. */
-    readonly events: readonly string[];
+    /**
+     * Widget events (`'optionChanged'`, `'selectionChanged'`, ...) that may
+     * affect the bound value. Names are checked against the widget's
+     * `Properties` declaration — a typo or an event a DevExtreme upgrade
+     * renamed is a compile error.
+     */
+    readonly events: readonly DxAdapterEventName<TInstance>[];
     /** Reads the current value from the widget. */
     read(instance: TInstance): TValue;
     /** Writes a new value to the widget. */
     write(instance: TInstance, value: TValue): void;
     /** Optional filter deciding whether a received event affects this binding. */
-    accept?(eventName: string, eventArgs: unknown): boolean;
+    accept?(eventName: DxAdapterEventName<TInstance>, eventArgs: unknown): boolean;
 }
 
 /** Which side wins the initial synchronization when the binding attaches. */
@@ -54,6 +63,8 @@ export interface DxBindingOptions<TValue> {
     /**
      * Debounce (milliseconds) applied to the widget → signal direction, e.g.
      * to tame per-keystroke `valueChanged` events. May be reactive.
+     * A read still pending when the binding is torn down is dropped — the
+     * signal keeps the last applied value.
      */
     readonly debounceMs?: number | (() => number);
     /** Initial synchronization strategy. Defaults to `'auto'`. */
@@ -72,6 +83,11 @@ export interface DxBindingOptions<TValue> {
  *   without any `NgZone` involvement.
  * - signal → widget: an `effect` pushes changes into the widget, again only
  *   when the value actually differs.
+ *
+ * When `hostRef` is a getter (e.g. a `viewChild(...)` signal) the binding
+ * survives widget re-creation: if the host component is destroyed and a new
+ * one appears, the binding re-attaches and the initial synchronization runs
+ * again — a signal holding state therefore restores it into the new widget.
  */
 export function bindDxState<THost extends DxHostComponent, TValue>(
     hostRef: DxHostRef<THost>,
@@ -83,7 +99,6 @@ export function bindDxState<THost extends DxHostComponent, TValue>(
         assertInInjectionContext(bindDxState);
     }
     const injector = options.injector ?? inject(Injector);
-    const destroyRef = injector.get(DestroyRef);
     const equal = options.equal ?? (dxStructuralEquals as DxEqualityFn<TValue>);
     const debounceMs =
         typeof options.debounceMs === 'function'
@@ -98,11 +113,6 @@ export function bindDxState<THost extends DxHostComponent, TValue>(
      */
     let syncing = false;
     let debounceTimer: ReturnType<typeof setTimeout> | undefined;
-    destroyRef.onDestroy(() => {
-        if (debounceTimer !== undefined) {
-            clearTimeout(debounceTimer);
-        }
-    });
 
     const guarded = (work: () => void): void => {
         syncing = true;
@@ -139,6 +149,7 @@ export function bindDxState<THost extends DxHostComponent, TValue>(
                     guarded(() => source.set(value));
                 }
             };
+            const detachers: (() => void)[] = [];
             for (const eventName of adapter.events) {
                 const handler = (eventArgs: unknown): void => {
                     if (syncing) {
@@ -158,7 +169,7 @@ export function bindDxState<THost extends DxHostComponent, TValue>(
                     }
                 };
                 instance.on(eventName, handler);
-                destroyRef.onDestroy(() => instance.off(eventName, handler));
+                detachers.push(() => instance.off(eventName, handler));
             }
 
             // --- signal → widget ----------------------------------------------
@@ -176,7 +187,20 @@ export function bindDxState<THost extends DxHostComponent, TValue>(
                 },
                 { injector },
             );
-            destroyRef.onDestroy(() => pusher.destroy());
+            detachers.push(() => pusher.destroy());
+
+            return () => {
+                // A pending debounced read must not fire into a dead widget.
+                // Its trailing value is deliberately dropped — the signal
+                // still holds the last applied state.
+                if (debounceTimer !== undefined) {
+                    clearTimeout(debounceTimer);
+                    debounceTimer = undefined;
+                }
+                for (let i = detachers.length - 1; i >= 0; i--) {
+                    detachers[i]?.();
+                }
+            };
         },
         injector,
     );
@@ -193,7 +217,11 @@ export function dxOptionAdapter<
     TValue,
 >(optionName: TName): DxBindingAdapter<DxInstanceOf<THost>, TValue> {
     return {
-        events: ['optionChanged'],
+        // Every DevExtreme widget declares `onOptionChanged`; the cast is
+        // only needed because `THost` is an unresolved type parameter here.
+        events: ['optionChanged'] as unknown as readonly DxAdapterEventName<
+            DxInstanceOf<THost>
+        >[],
         read: (instance) => instance.option(optionName) as TValue,
         write: (instance, value) => {
             (instance.option as (name: string, value: unknown) => void)(optionName, value);

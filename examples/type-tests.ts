@@ -5,17 +5,30 @@
  * compiling — either indicates a breaking change in the type system.
  */
 import { signal } from '@angular/core';
+import { DxChartComponent } from 'devextreme-angular/ui/chart';
 import { DxDataGridComponent } from 'devextreme-angular/ui/data-grid';
+import { DxFormComponent } from 'devextreme-angular/ui/form';
 import { DxPopupComponent } from 'devextreme-angular/ui/popup';
 import { DxTextBoxComponent } from 'devextreme-angular/ui/text-box';
 import type {
+    DxBindingAdapter,
     DxHostEventArg,
     DxHostEventName,
     DxHostOptionName,
     DxHostOptionValue,
     DxHostValue,
+    DxInstanceOf,
 } from 'ngx-devextreme-zoneless';
-import { bindDxOption, dxEventSignal, dxOptionSignal } from 'ngx-devextreme-zoneless';
+import type DataSource from 'devextreme/data/data_source';
+import {
+    bindDxOption,
+    dxArrayStoreSource,
+    dxEventSignal,
+    dxInstanceSignal,
+    dxOptionSignal,
+    dxReloadOn,
+    onDxWidgetReady,
+} from 'ngx-devextreme-zoneless';
 
 declare function expectType<T>(value: T): void;
 declare const textBox: DxTextBoxComponent;
@@ -53,6 +66,37 @@ expectType<unknown>(valueChangedArg.value);
 expectType<import('devextreme/ui/text_box').default | undefined>(valueChangedArg.component);
 
 /* ------------------------------------------------------------------------ *
+ * Adapter event names are checked against the widget's Properties
+ * ------------------------------------------------------------------------ */
+type FormInstance = DxInstanceOf<DxFormComponent>;
+
+const formAdapter: DxBindingAdapter<FormInstance, object> = {
+    events: ['fieldDataChanged', 'optionChanged'],
+    read: () => ({}),
+    write: () => void 0,
+};
+
+const misspelledAdapter: DxBindingAdapter<FormInstance, object> = {
+    // @ts-expect-error — misspelled/renamed event names are rejected
+    events: ['feildDataChanged'],
+    read: () => ({}),
+    write: () => void 0,
+};
+
+/* Positive controls pinning the event names used by generic internal
+ * adapters (which cannot be checked at their declaration site): a DevExtreme
+ * rename of these names must fail this file. */
+const chartSelectionEvent: DxHostEventName<DxChartComponent> = 'pointSelectionChanged';
+const chartClickEvent: DxHostEventName<DxChartComponent> = 'pointClick';
+const optionChangedEvent: DxHostEventName<DxTextBoxComponent> = 'optionChanged';
+
+/* Grid state options used by the F7 directives stay derivable and typed. */
+type Grid = DxDataGridComponent<{ id: number }, number>;
+const gridFilterOption: DxHostOptionName<Grid> = 'filterValue';
+const gridFocusOption: DxHostOptionName<Grid> = 'focusedRowKey';
+expectType<number | undefined>(undefined as DxHostOptionValue<Grid, 'focusedRowKey'>);
+
+/* ------------------------------------------------------------------------ *
  * bindDxOption links option name and signal type
  * ------------------------------------------------------------------------ */
 declare function inInjectionContext(fn: () => void): void;
@@ -78,4 +122,26 @@ inInjectionContext(() => {
 
     // @ts-expect-error — unknown event names are rejected
     dxEventSignal(textBox, 'notAnEvent');
+
+    /* onDxWidgetReady resolves the concrete widget type and accepts an
+     * optional cleanup (fires per widget instance since 2.0). */
+    onDxWidgetReady(textBox, (instance) => {
+        expectType<import('devextreme/ui/text_box').default>(instance);
+        return () => void 0;
+    });
+    onDxWidgetReady(textBox, () => void 0);
+
+    /* dxInstanceSignal follows getter refs and yields the widget type. */
+    const gridInstance = dxInstanceSignal(() => grid);
+    expectType<
+        import('devextreme/ui/data_grid').default<{ id: number }, number> | undefined
+    >(gridInstance());
+
+    /* Data-in helpers: item type flows through; reload targets are flexible. */
+    const ordersSource = dxArrayStoreSource(signal<readonly { id: number }[]>([]), {
+        key: 'id',
+    });
+    expectType<DataSource<{ id: number }, unknown>>(ordersSource);
+    dxReloadOn(ordersSource, [signal(0), signal('query')]);
+    dxReloadOn(() => void 0, [signal(0)]);
 });

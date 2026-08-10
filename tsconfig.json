@@ -16,7 +16,11 @@
     "importHelpers": true,
     "target": "ES2022",
     "module": "preserve",
-    "lib": ["ES2022", "dom"]
+    "lib": ["ES2022", "dom"],
+    "paths": {
+      "ngx-devextreme-zoneless": ["./src/public-api.ts"],
+      "ngx-devextreme-zoneless/*": ["./*/src/public-api.ts"]
+    }
   },
   "angularCompilerOptions": {
     "enableI18nLegacyMessageIdFormat": false,

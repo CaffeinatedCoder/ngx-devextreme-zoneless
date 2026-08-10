@@ -2,7 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Context7](https://img.shields.io/badge/Context7-Indexed-3B82F6)](https://context7.com/caffeinatedcoder/ngx-devextreme-zoneless)
-[![NPM](https://img.shields.io/badge/NPM-1.0.0-3B82F6)](https://www.npmjs.com/package/ngx-devextreme-zoneless)
+[![NPM](https://img.shields.io/badge/NPM-2.0.0-3B82F6)](https://www.npmjs.com/package/ngx-devextreme-zoneless)
 
 Strongly-typed **signal & zoneless change-detection adapters** for
 [DevExtreme Angular](https://js.devexpress.com/Angular/) components.
@@ -23,6 +23,13 @@ Angular signal  ◀──set────  widget event (optionChanged, selection
 - **Angular** ≥ 20 (built and verified against Angular 22, zoneless by default)
 - **DevExtreme / devextreme-angular** ≥ 25.1 (built and verified against 26.1)
 - **TypeScript** 6.0, `strict`, zero `any` in the public surface
+
+> **Why this library exists:** DevExpress officially still requires zone.js —
+> zoneless support for `devextreme-angular` has not been started and has no
+> ETA. Running DevExtreme zoneless is therefore outside the vendor-supported
+> configuration, and this library is the bridge. Its CI (a Playwright suite
+> driving every binding through a real zoneless app on every push) is the
+> compatibility net the vendor does not provide.
 
 Everything is *derived from DevExtreme's own `Properties` declarations* via
 template-literal and conditional types — option names, option value types and
@@ -111,6 +118,20 @@ Where DevExtreme declares `value?: any` (SelectBox & friends) the directive is
 | `dx-scheduler[dxCurrentView]` | DevExtreme's view union |
 | `dx-form[dxFormData]` | generic `TFormData` — emits a fresh shallow copy per field edit |
 
+### Grid state (dx-data-grid and dx-tree-list)
+
+| Selector | Model |
+|---|---|
+| `[dxFocusedRowKey]` | `TKey \| null` (requires `focusedRowEnabled`; `null` clears) |
+| `[dxFilterValue]` | `DxFilterExpression \| null` |
+| `[dxPageIndex]`, `[dxPageSize]` | `number` (method-based — paging lives under the nested `paging` option) |
+| `[dxGridState]` | `DxGridState \| null \| undefined` — the full layout state (`state()` / `stateStoring`) |
+
+`[(dxGridState)]` is the layout-persistence story: bind it to a signal you
+persist wherever you like. `undefined` pulls the current state on attach,
+a saved state object restores the layout, `null` resets to defaults. Widget →
+signal reads are debounced (`dxGridStateDebounce`, default 100 ms).
+
 ### Navigation & overlays
 
 | Selector | Model |
@@ -170,8 +191,26 @@ export class MyComponent {
 
   // The raw widget instance as a signal (undefined until created):
   readonly widget = injectDxInstance(DxTextBoxComponent);
+
+  // Same, but for a view child — resets to undefined while the widget is
+  // gone and follows re-creation:
+  readonly gridWidget = dxInstanceSignal(this.grid);
 }
 ```
+
+### Widget re-creation
+
+Composition-API bindings on a **getter host reference** (a `viewChild(...)`
+signal) survive widget re-creation: when an `@if`, a tab panel or re-created
+popup content destroys the widget and later creates a new one, the binding
+re-attaches automatically and the initial synchronization runs again — a
+signal holding state therefore **restores it into the new widget**. The
+attribute directives don't need any of this; they die and are re-created with
+their element.
+
+`onDxWidgetReady` is the underlying primitive: it fires once per widget
+instance, and its callback may return a cleanup that runs when the widget
+goes away.
 
 ### Components without a dedicated directive
 
@@ -226,11 +265,99 @@ how the chart-selection and tree-view directives are built. And if you want
 template sugar for a component we don't cover, a custom directive is ~10
 lines by extending `DxValueDirectiveBase`, `DxVisibleDirectiveBase`, etc.
 
+## Data loading (signals → DataSource)
+
+Two-way state is one half of the zoneless problem; the other half is data
+loading — DevExtreme components load through `DataSource`/stores, which know
+nothing about signals.
+
+**Array data in a signal** — `dxArrayStoreSource` wraps a
+`Signal<readonly T[]>` in a `DataSource` that reloads whenever the signal
+changes:
+
+```ts
+readonly orders = signal<readonly Order[]>([]);
+readonly ordersSource = dxArrayStoreSource(this.orders, { key: 'id' });
+// <dx-data-grid [dataSource]="ordersSource" />
+```
+
+**Remote data with signal-driven filters** — `dxReloadOn` triggers a reload
+whenever dependency signals change, so external filter state needs no
+hand-written `refresh()` plumbing:
+
+```ts
+readonly search = signal('');
+
+// e.g. a DevExtreme.AspNet.Data endpoint:
+readonly source = new DataSource({
+  store: createStore({ loadUrl: '/api/orders', key: 'id' }),
+});
+
+constructor() {
+  dxReloadOn(this.source, [this.search]);
+}
+```
+
+The target can also be a callback (`dxReloadOn(() => this.grid()?.refresh(), [deps])`)
+for anything that is not a `DataSource`.
+
+**Recipe: full remote loading state as signals.** Pair a `CustomStore` with
+signals for loading/error state — the store reads filters `untracked`, and
+`dxReloadOn` drives reloads:
+
+```ts
+readonly search = signal('');
+readonly isLoading = signal(false);
+readonly loadError = signal<unknown>(undefined);
+
+readonly source = new DataSource<Order, number>({
+  store: new CustomStore<Order, number>({
+    key: 'id',
+    loadMode: 'raw',
+    load: async () => {
+      this.isLoading.set(true);
+      try {
+        const query = untracked(this.search);
+        return await fetchOrders(query);
+      } catch (error) {
+        this.loadError.set(error);
+        throw error;
+      } finally {
+        this.isLoading.set(false);
+      }
+    },
+  }),
+});
+
+constructor() {
+  dxReloadOn(this.source, [this.search]);
+}
+```
+
+This intentionally ships as a recipe rather than API: the shape will be
+extracted from real consumer screens before it hardens into code.
+
 ## Semantics
 
 - **Initial sync** (`initialSync`, default `'auto'`): the signal's value is
   pushed into the widget on attach; if it is `undefined`, the widget's current
   value is pulled into the signal instead.
+- **`undefined` vs `null`**: `undefined` means *absent* — a signal holding
+  `undefined` is never pushed into the widget (that is what makes `'auto'`
+  initial sync and late-created widgets work). To *clear* an option through a
+  binding, use `null`: `status.set(null)` clears a select box,
+  `status.set(undefined)` does nothing. This mirrors DevExtreme's own
+  conventions — its clearable editors write `null`, not `undefined`.
+- **Debounced typing**: DevExtreme text editors update their `value` option on
+  *blur* by default. Pair `[(dxValue)]` + `dxValueDebounce` with
+  `valueChangeEvent="input"` on the editor to get live per-keystroke updates:
+
+  ```html
+  <dx-text-box [(dxValue)]="search" [dxValueDebounce]="300" valueChangeEvent="input" />
+  ```
+
+  Without it, the binding appears to only fire on blur — that is the widget's
+  event timing, not the binding's.
 - **Echo suppression**: updates only propagate when the value *structurally*
   changed (`Date`-aware, deep for arrays/plain objects). Override per binding
   via `equal` / `dxValueEqual`.
@@ -238,8 +365,31 @@ lines by extending `DxValueDirectiveBase`, `DxVisibleDirectiveBase`, etc.
   `dx-text-box` doesn't storm your `computed()` graph.
 - **Teardown** is automatic via `DestroyRef` — event handlers are detached and
   effects destroyed when the directive/component dies.
+- **Re-attach**: with a getter host reference the binding follows widget
+  re-creation (see [Widget re-creation](#widget-re-creation)); per-widget
+  resources are disposed on each detach.
 - **Zoneless**: no `NgZone`, no `markForCheck` — signal writes are the change
   notification.
+
+## Entry points & tree-shaking
+
+The package ships per-family secondary entry points:
+
+```
+ngx-devextreme-zoneless            → everything (re-exports the below)
+ngx-devextreme-zoneless/core       → engine, types, bases, data-source helpers
+ngx-devextreme-zoneless/editors    → [(dxValue)] directives
+ngx-devextreme-zoneless/navigation → [(dxSelectedIndex)], [(dxOpened)], …
+ngx-devextreme-zoneless/overlays   → [(dxVisible)] directives
+ngx-devextreme-zoneless/data       → grid/form/scheduler/tree directives
+ngx-devextreme-zoneless/visualization → chart selection, range selector
+```
+
+Importing from the main entry is fine: bundlers drop the families you don't
+use at module level (CI proves it — a probe app importing a single editor
+directive is asserted to contain no Gantt, Scheduler, HtmlEditor, chart or
+grid modules). Import from a family entry point when you want the split to be
+explicit.
 
 ## Type helpers
 
@@ -256,18 +406,22 @@ DxHostValue<DxCheckBoxComponent>              // boolean | null
 ## Development
 
 ```bash
-npm run build               # ng-packagr build → dist/
+npm run build               # ng-packagr build → dist/ (all entry points)
 npm run typecheck:examples  # strict-template check of examples/ + type contract tests
 npm run verify              # both
 npm run smoke               # runtime smoke test app on http://localhost:4299
+npm run e2e                 # Playwright suite against the smoke app
+npm run probe               # bundle tree-shaking probe (requires a prior build)
 ```
 
 The smoke app ([smoke/src/smoke.component.ts](smoke/src/smoke.component.ts))
 boots with `provideZonelessChangeDetection()` — zone.js is not even installed
 in this workspace — and exercises text box, select box, check box, slider,
-tabs, grid selection, popup visibility, chart point selection and the
-composition API in a real browser, with `data-testid` readouts for scripted
-verification of both binding directions.
+tabs, grid selection/paging/focus, signal-driven data loading, popup
+visibility, chart point selection, the composition API and widget
+re-creation in a real browser. The Playwright suite
+([e2e/smoke.spec.ts](e2e/smoke.spec.ts)) asserts both directions of every
+binding against the `data-testid` readouts and runs in CI on every push.
 
 See [examples/order-dashboard.component.ts](examples/order-dashboard.component.ts)
 for a complete signal-driven dashboard and

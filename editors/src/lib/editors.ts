@@ -18,7 +18,13 @@ import { DxSwitchComponent } from 'devextreme-angular/ui/switch';
 import { DxTagBoxComponent } from 'devextreme-angular/ui/tag-box';
 import { DxTextAreaComponent } from 'devextreme-angular/ui/text-area';
 import { DxTextBoxComponent } from 'devextreme-angular/ui/text-box';
-import { DxValueDirectiveBase } from './bases';
+import {
+    DxValueDirectiveBase,
+    type DxDateRange,
+    type DxDateValue,
+    type DxFilterExpression,
+    type DxNumberRange,
+} from 'ngx-devextreme-zoneless/core';
 
 /**
  * `[(dxValue)]` adapter directives for all value-holding editors.
@@ -28,21 +34,6 @@ import { DxValueDirectiveBase } from './bases';
  * directive is generic instead, so the value type is inferred from your
  * bound signal and checked end-to-end.
  */
-
-/** A date-like value as accepted by DevExtreme date editors. */
-export type DxDateValue = Date | number | string;
-
-/** A date range as held by `dx-date-range-box`. */
-export type DxDateRange = readonly [start: DxDateValue | null, end: DxDateValue | null];
-
-/** A numeric range as held by `dx-range-slider`. */
-export type DxNumberRange = readonly [start: number, end: number];
-
-/** A filter expression as held by `dx-filter-builder`. */
-export type DxFilterExpression =
-    | string
-    | readonly unknown[]
-    | ((...args: never[]) => unknown);
 
 @Directive({ selector: 'dx-text-box[dxValue]', exportAs: 'dxValue' })
 export class DxTextBoxValueDirective extends DxValueDirectiveBase<DxTextBoxComponent, string> {

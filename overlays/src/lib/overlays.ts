@@ -5,7 +5,7 @@ import { DxPopoverComponent } from 'devextreme-angular/ui/popover';
 import { DxPopupComponent } from 'devextreme-angular/ui/popup';
 import { DxToastComponent } from 'devextreme-angular/ui/toast';
 import { DxTooltipComponent } from 'devextreme-angular/ui/tooltip';
-import { DxVisibleDirectiveBase } from './bases';
+import { DxVisibleDirectiveBase } from 'ngx-devextreme-zoneless/core';
 
 /**
  * `[(dxVisible)]` adapter directives for overlay widgets. The signal follows

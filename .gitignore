@@ -1,5 +1,12 @@
 node_modules/
 dist/
+dist-smoke/
+dist-probe/
 out-tsc/
 *.tgz
 .DS_Store
+.angular/
+.idea/
+.claude/settings.local.json
+playwright-report/
+test-results/

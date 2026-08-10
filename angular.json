@@ -29,6 +29,29 @@
           }
         }
       }
+    },
+    "probe": {
+      "projectType": "application",
+      "root": "probe",
+      "sourceRoot": "probe/src",
+      "prefix": "app",
+      "architect": {
+        "build": {
+          "builder": "@angular/build:application",
+          "options": {
+            "outputPath": "dist-probe",
+            "index": "probe/src/index.html",
+            "browser": "probe/src/main.ts",
+            "tsConfig": "tsconfig.probe.json",
+            "optimization": true,
+            "outputHashing": "none",
+            "extractLicenses": false,
+            "sourceMap": false,
+            "statsJson": true,
+            "budgets": []
+          }
+        }
+      }
     }
   }
 }

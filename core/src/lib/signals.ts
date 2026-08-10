@@ -1,6 +1,5 @@
 import {
     assertInInjectionContext,
-    DestroyRef,
     inject,
     Injector,
     signal,
@@ -92,6 +91,11 @@ export function dxOptionSignal<
  * readonly focusOut = dxEventSignal(this.textBox, 'focusOut');
  * readonly rowClick = dxEventSignal(this.grid, 'rowClick');
  * ```
+ *
+ * Every fire notifies consumers, even when DevExtreme reuses or mutates the
+ * event-args object — an event stream never dedupes. With a getter `hostRef`
+ * the subscription follows widget re-creation; the last payload is kept
+ * across the gap.
  */
 export function dxEventSignal<
     THost extends DxHostComponent,
@@ -106,14 +110,14 @@ export function dxEventSignal<
         assertInInjectionContext(dxEventSignal);
     }
     const resolvedInjector = injector ?? inject(Injector);
-    const latest = signal<TArg | undefined>(undefined);
+    const latest = signal<TArg | undefined>(undefined, { equal: () => false });
 
     onDxWidgetReady(
         hostRef,
         (instance) => {
             const handler = (eventArgs: TArg): void => latest.set(eventArgs);
             instance.on(eventName, handler);
-            resolvedInjector.get(DestroyRef).onDestroy(() => instance.off(eventName, handler));
+            return () => instance.off(eventName, handler);
         },
         resolvedInjector,
     );
@@ -121,19 +125,54 @@ export function dxEventSignal<
 }
 
 /**
- * Injects a devextreme-angular component from the current element and exposes
- * its widget instance as a signal that becomes non-`undefined` once the
- * widget has been created:
+ * Exposes the DevExtreme widget instance behind a host reference as a signal
+ * that is `undefined` until the widget exists. With a getter `hostRef` (e.g.
+ * a `viewChild(...)` signal) it follows widget re-creation: the signal resets
+ * to `undefined` when the widget goes away and yields the new instance once
+ * it is ready.
+ *
+ * ```ts
+ * private readonly gridRef = viewChild(DxDataGridComponent);
+ * readonly grid = dxInstanceSignal(this.gridRef);
+ * ```
+ */
+export function dxInstanceSignal<THost extends DxHostComponent>(
+    hostRef: DxHostRef<THost>,
+    injector?: Injector,
+): Signal<DxInstanceOf<THost> | undefined> {
+    if (injector === undefined) {
+        assertInInjectionContext(dxInstanceSignal);
+    }
+    const resolvedInjector = injector ?? inject(Injector);
+    const instance = signal<DxInstanceOf<THost> | undefined>(undefined);
+    onDxWidgetReady(
+        hostRef,
+        (widget) => {
+            instance.set(widget);
+            return () => instance.set(undefined);
+        },
+        resolvedInjector,
+    );
+    return instance.asReadonly();
+}
+
+/**
+ * Injects a devextreme-angular component from the *current element* and
+ * exposes its widget instance as a signal that becomes non-`undefined` once
+ * the widget has been created:
  *
  * ```ts
  * readonly grid = injectDxInstance(DxDataGridComponent);
  * ```
+ *
+ * The injection is strictly `{ self: true }` — it throws when the current
+ * element does not carry the component. (Versions before 2.0 silently fell
+ * back to ancestor injection, which could grab a *parent* widget of the same
+ * type; use `dxInstanceSignal(viewChild(...))` or an explicit `inject()` to
+ * reach a widget elsewhere in the template.)
  */
 export function injectDxInstance<THost extends DxHostComponent>(
     token: ProviderToken<THost>,
 ): Signal<DxInstanceOf<THost> | undefined> {
-    const host = inject(token, { self: true, optional: true }) ?? inject(token);
-    const instance = signal<DxInstanceOf<THost> | undefined>(undefined);
-    onDxWidgetReady(host, (widget) => instance.set(widget));
-    return instance.asReadonly();
+    return dxInstanceSignal(inject(token, { self: true }));
 }
