@@ -1,0 +1,59 @@
+name: Release
+
+# Publishes to npm via trusted publishing (OIDC) when a version tag is
+# pushed. No npm token is involved: npmjs.com is configured to trust this
+# exact workflow file in this repository, and provenance attestations are
+# generated automatically.
+#
+# Release flow:  npm version <major|minor|patch>  (or edit package.json +
+# tag manually)  →  git push origin main --follow-tags
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+  id-token: write # Required for OIDC trusted publishing
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          # Node 24 bundles npm 11, which supports trusted publishing.
+          node-version: 24
+          registry-url: 'https://registry.npmjs.org'
+          # Never use caching in release builds (per npm docs).
+          package-manager-cache: false
+
+      - name: Check tag matches package version
+        run: |
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          if [ "v$PKG_VERSION" != "$GITHUB_REF_NAME" ]; then
+            echo "Tag $GITHUB_REF_NAME does not match package.json version $PKG_VERSION" >&2
+            exit 1
+          fi
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build library + type-contract tests
+        run: npm run verify
+
+      - name: Bundle tree-shaking probe
+        run: npm run probe
+
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+
+      - name: Runtime binding tests (zoneless smoke app)
+        run: npm run e2e
+
+      - name: Publish to npm (trusted publishing)
+        run: npm publish --access public
+        working-directory: dist
