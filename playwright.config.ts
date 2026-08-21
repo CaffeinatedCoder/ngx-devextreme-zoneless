@@ -17,10 +17,20 @@ export default defineConfig({
         trace: 'on-first-retry',
     },
     projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
-    webServer: {
-        command: 'npm run smoke',
-        url: 'http://localhost:4299',
-        reuseExistingServer: !process.env['CI'],
-        timeout: 180_000,
-    },
+    webServer: [
+        {
+            // DevExtreme.AspNet.Data protocol stub — the deterministic remote
+            // fixture behind the smoke app's `/api` proxy (smoke/proxy.conf.json).
+            command: 'node e2e/stub-server.mjs',
+            url: 'http://localhost:4300/api/__stats',
+            reuseExistingServer: !process.env['CI'],
+            timeout: 30_000,
+        },
+        {
+            command: 'npm run smoke',
+            url: 'http://localhost:4299',
+            reuseExistingServer: !process.env['CI'],
+            timeout: 180_000,
+        },
+    ],
 });

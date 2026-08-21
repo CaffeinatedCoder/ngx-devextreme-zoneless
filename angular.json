@@ -25,7 +25,8 @@
           "builder": "@angular/build:dev-server",
           "options": {
             "buildTarget": "smoke:build",
-            "port": 4299
+            "port": 4299,
+            "proxyConfig": "smoke/proxy.conf.json"
           }
         }
       }

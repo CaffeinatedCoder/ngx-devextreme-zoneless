@@ -6,6 +6,12 @@
       "runtimeExecutable": "npx",
       "runtimeArgs": ["ng", "serve", "smoke"],
       "port": 4299
+    },
+    {
+      "name": "stub",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["e2e/stub-server.mjs"],
+      "port": 4300
     }
   ]
 }

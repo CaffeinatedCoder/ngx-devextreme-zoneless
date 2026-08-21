@@ -303,41 +303,110 @@ constructor() {
 The target can also be a callback (`dxReloadOn(() => this.grid()?.refresh(), [deps])`)
 for anything that is not a `DataSource`.
 
-**Recipe: full remote loading state as signals.** Pair a `CustomStore` with
-signals for loading/error state — the store reads filters `untracked`, and
-`dxReloadOn` drives reloads:
+## Remote data (`dxRemoteStore`) <sup>developer preview in 2.1</sup>
+
+For server-side loading, `dxRemoteStore` wraps a load function in a
+`DataSource` and exposes the loading state the widget cannot show for you,
+using Angular `resource()` vocabulary — no third dialect. This section is
+written from the reference screens in `smoke/src/remote.component.ts`, which
+run in CI against a DevExtreme.AspNet.Data protocol stub
+(`e2e/stub-server.mjs`) including slow- and failing-endpoint cases.
 
 ```ts
 readonly search = signal('');
-readonly isLoading = signal(false);
-readonly loadError = signal<unknown>(undefined);
+readonly status = signal<string | null>(null);
 
-readonly source = new DataSource<Order, number>({
-  store: new CustomStore<Order, number>({
-    key: 'id',
-    loadMode: 'raw',
-    load: async () => {
-      this.isLoading.set(true);
-      try {
-        const query = untracked(this.search);
-        return await fetchOrders(query);
-      } catch (error) {
-        this.loadError.set(error);
-        throw error;
-      } finally {
-        this.isLoading.set(false);
-      }
-    },
-  }),
+readonly orders = dxRemoteStore<Order, number>({
+  key: 'id',
+  deps: [this.search, this.status],   // query state living outside the widget
+  debounce: 300,                      // for keystroke-fed dependency signals
+  load: async (options, signal) => {
+    // options: DevExtreme LoadOptions (filter/sort/skip/take/…) from the widget;
+    // merge your external filter signals and go to the server:
+    const filter = combineFilters(options.filter, myExternalFilter());
+    const response = await fetch(`/api/orders?${dxLoadOptionsParams({ ...options, filter })}`, { signal });
+    if (!response.ok) throw new Error(`orders failed: ${response.status}`);
+    return response.json(); // { data, totalCount } — or a plain array
+  },
 });
-
-constructor() {
-  dxReloadOn(this.source, [this.search]);
-}
 ```
 
-This intentionally ships as a recipe rather than API: the shape will be
-extracted from real consumer screens before it hardens into code.
+```html
+<dx-data-grid [dataSource]="orders.dataSource" [remoteOperations]="true">…</dx-data-grid>
+@if (orders.isLoading()) { <app-spinner /> }
+@if (orders.error(); as error) { <button (click)="orders.reload()">retry</button> }
+```
+
+`dxLoadOptionsParams` serializes `LoadOptions` into the exact query-string
+format DevExtreme.AspNet.Data server libraries parse (JSON-encoded
+`filter`/`sort`/`group`/`select`/summaries, plain `skip`/`take`/
+`requireTotalCount`/`requireGroupCount`) — the same wire format the vendor's
+`createStore({ loadUrl })` produces, but through your own `fetch`, so auth
+headers, interceptors and `AbortSignal` stay in your hands.
+
+**The contract**, aligned with `resource()` and verified by e2e:
+
+- **Cancellation, last write wins.** Every load receives an `AbortSignal`. A
+  reload — dependency-driven or manual — aborts whatever is in flight;
+  superseded loads never overwrite newer results, never surface stale errors,
+  and never trigger the widget's load-error UI.
+- **`error` + retry.** `error` holds the rejection of the most recent settled
+  load and is cleared by the next successful one; `reload()` is the retry.
+  The widget additionally shows its own load-error row — `error` is for UI
+  outside the widget.
+- **Page ownership.** A dependency change is a new query, so the store resets
+  to page 0 (mirroring `DataSource.filter()` semantics). Manual `reload()`
+  refetches the same query and keeps the page. You never manage `pageIndex`
+  yourself — and a bound `[(dxPageIndex)]` signal follows both cases.
+- **Debounce ownership.** The `debounce` option applies to dependency-driven
+  reloads only (type-ahead filter signals). Widget-driven search (a lookup's
+  `searchTimeout`) is already debounced by the widget — don't stack a second
+  debounce on the same keystrokes.
+- **Search folds into `filter`.** Widget search options are merged into
+  `LoadOptions.filter` before `load` runs (vendor-parity `useDefaultSearch`),
+  so your load function only ever deals in filter expressions.
+
+**Dependent queries** — a master grid's selection signal drives the detail
+store; return an empty result to skip the request entirely:
+
+```ts
+readonly detailOrders = dxRemoteStore<Order, number>({
+  key: 'id',
+  deps: [this.selectedCustomerId],
+  load: async (options, signal) => {
+    const customerId = untracked(this.selectedCustomerId);
+    if (customerId === undefined) return { data: [], totalCount: 0 };
+    const filter = combineFilters(options.filter, ['customerId', '=', customerId]);
+    return fetchJson(`/api/orders?${dxLoadOptionsParams({ ...options, filter })}`, signal);
+  },
+});
+```
+
+**Lookup editors need `byKey`** — a select box showing a programmatically set
+value must resolve the item behind the key before any page is loaded. Against
+a loadOptions endpoint, `byKey` is a filtered load:
+
+```ts
+readonly customerLookup = dxRemoteStore<Customer, number>({
+  key: 'id',
+  load: (options, signal) =>
+    fetchJson(`/api/customers?${dxLoadOptionsParams(options)}`, signal),
+  byKey: async (key, signal) => {
+    const params = dxLoadOptionsParams({ filter: ['id', '=', key], take: 1 });
+    const result = await fetchJson<{ data: Customer[] }>(`/api/customers?${params}`, signal);
+    if (result.data[0] === undefined) throw new Error(`customer ${key} not found`);
+    return result.data[0];
+  },
+});
+```
+
+**Scope: load-only, by design.** Create/update/delete deliberately stay out
+of this first cut — editing flows couple to validation, conflict handling and
+optimistic-update policy that this package should not decide for you. For
+editable grids, hand the widget a full `CustomStore` (or the vendor's
+`createStore` with `insertUrl`/`updateUrl`/`deleteUrl`) and keep
+`dxRemoteStore` for the read paths. If real consumer screens produce a shape
+worth hardening, CRUD can graduate the same way this API did.
 
 ## Semantics
 
@@ -379,7 +448,7 @@ The package ships per-family secondary entry points:
 
 ```
 ngx-devextreme-zoneless            → everything (re-exports the below)
-ngx-devextreme-zoneless/core       → engine, types, bases, data-source helpers
+ngx-devextreme-zoneless/core       → engine, types, bases, data-source/remote helpers
 ngx-devextreme-zoneless/editors    → [(dxValue)] directives
 ngx-devextreme-zoneless/navigation → [(dxSelectedIndex)], [(dxOpened)], …
 ngx-devextreme-zoneless/overlays   → [(dxVisible)] directives

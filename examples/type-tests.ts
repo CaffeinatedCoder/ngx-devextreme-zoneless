@@ -25,10 +25,13 @@ import {
     dxArrayStoreSource,
     dxEventSignal,
     dxInstanceSignal,
+    dxLoadOptionsParams,
     dxOptionSignal,
     dxReloadOn,
+    dxRemoteStore,
     onDxWidgetReady,
 } from 'ngx-devextreme-zoneless';
+import type { LoadOptions } from 'devextreme/common/data';
 
 declare function expectType<T>(value: T): void;
 declare const textBox: DxTextBoxComponent;
@@ -144,4 +147,33 @@ inInjectionContext(() => {
     expectType<DataSource<{ id: number }, unknown>>(ordersSource);
     dxReloadOn(ordersSource, [signal(0), signal('query')]);
     dxReloadOn(() => void 0, [signal(0)]);
+
+    /* Remote store: item and key types flow through load, byKey and the handle. */
+    const remote = dxRemoteStore<{ id: number; name: string }, number>({
+        key: 'id',
+        deps: [signal('search'), signal(0)],
+        debounce: 300,
+        load: async (options, abortSignal) => {
+            expectType<LoadOptions<{ id: number; name: string }>>(options);
+            expectType<AbortSignal>(abortSignal);
+            return { data: [{ id: 1, name: 'a' }], totalCount: 1 };
+        },
+        byKey: async (key, abortSignal) => {
+            expectType<number>(key);
+            expectType<AbortSignal>(abortSignal);
+            return { id: key, name: 'a' };
+        },
+    });
+    expectType<DataSource<{ id: number; name: string }, number>>(remote.dataSource);
+    expectType<boolean>(remote.isLoading());
+    expectType<unknown>(remote.error());
+    expectType<Promise<void>>(remote.reload());
+
+    // @ts-expect-error — byKey must resolve the item type
+    dxRemoteStore<{ id: number }, number>({ load: async () => [], byKey: async () => 'nope' });
+    // @ts-expect-error — deps must be signals
+    dxRemoteStore<{ id: number }, number>({ load: async () => [], deps: ['not-a-signal'] });
+
+    /* The loadOptions serializer accepts LoadOptions and yields URLSearchParams. */
+    expectType<URLSearchParams>(dxLoadOptionsParams({ skip: 0, take: 10 }));
 });
