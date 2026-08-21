@@ -1,5 +1,44 @@
 # Changelog
 
+## 2.1.0 (2026-08-21)
+
+### Added
+
+- **`dxRemoteStore` (developer preview).** Remote data with Angular
+  `resource()` vocabulary: wraps a consumer-supplied
+  `load(loadOptions, abortSignal)` in a DevExtreme `DataSource` and returns
+  `{ dataSource, isLoading, error, reload }`. Semantics, all e2e-verified
+  against an in-repo DevExtreme.AspNet.Data protocol stub with injectable
+  latency and failures: every load gets an `AbortSignal` and a reload aborts
+  in-flight requests (last write wins, no stale results, no stale errors, no
+  widget error-UI flash for superseded loads); `error` reflects the most
+  recent settled load with `reload()` as the retry; dependency-signal changes
+  reset to page 0 while manual `reload()` keeps the page; `debounce` applies
+  to dependency-driven reloads only; widget search folds into
+  `LoadOptions.filter` (vendor-parity `useDefaultSearch`); `byKey` supports
+  lookup editors. Load-only by design — CRUD intentionally stays out of this
+  cut (see the README's scope note).
+- **`dxLoadOptionsParams`** serializes `LoadOptions` into the query-string
+  wire format DevExtreme.AspNet.Data server libraries parse (JSON-encoded
+  structured options, plain scalars, string `sort`/`group` entries normalized
+  to `{ selector }` objects) — the vendor client's format, through your own
+  `fetch`.
+- **Reference screens + protocol stub as permanent fixtures.** The smoke app
+  gains a `/remote` screen (external filter signals over a remote grid,
+  master–detail driven by a selection signal, lookup with server-side search
+  and `byKey`, widget re-creation over a surviving store), driven by 14 new
+  Playwright tests against `e2e/stub-server.mjs` — assertions about the wire
+  protocol are made on real HTTP traffic via the stub's `__stats` endpoint.
+
+### Fixed
+
+- **`[(dxPageIndex)]` / `[(dxPageSize)]` now follow DataSource-level paging
+  changes.** The paging adapters additionally re-read on `contentReady`:
+  manipulating the bound `DataSource` directly (`pageIndex(0)` + reload — as
+  `dxRemoteStore`'s dependency-driven reset does, and as `DataSource.filter()`
+  always did) changes paging beneath the `paging` option without any
+  `optionChanged`, which previously left the bound signal stale.
+
 ## 2.0.0 (2026-08-10)
 
 ### Breaking changes

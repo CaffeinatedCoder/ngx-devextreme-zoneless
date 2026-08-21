@@ -1,6 +1,6 @@
 {
   "name": "ngx-devextreme-zoneless",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "private": false,
   "description": "Strongly-typed signal & zoneless change-detection adapters for DevExtreme Angular components",
   "license": "MIT",
