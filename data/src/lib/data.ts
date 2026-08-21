@@ -254,19 +254,24 @@ interface GridStateLike {
  * Paging lives under the nested `paging` option (`paging.pageIndex`), which
  * option-name typing deliberately does not cover — these adapters go through
  * the `pageIndex()` / `pageSize()` methods instead and listen for the nested
- * option change.
+ * option change. They additionally re-read on `contentReady`: paging can
+ * change beneath the `paging` option, without any `optionChanged`, when the
+ * bound `DataSource` is manipulated directly (`dataSource.pageIndex(0)` +
+ * reload — e.g. a `dxRemoteStore` dependency-driven page reset), and
+ * `contentReady` is the event the grid fires after rendering any such change.
  */
 function pageIndexAdapter<TInstance extends DxWidget & GridPagingLike>(): DxBindingAdapter<
     TInstance,
     number
 > {
     return {
-        // `optionChanged` exists on every widget; the cast is only needed
-        // because `TInstance` is an unresolved type parameter here.
-        events: ['optionChanged'] as unknown as readonly DxAdapterEventName<TInstance>[],
+        // `optionChanged`/`contentReady` exist on every widget; the cast is
+        // only needed because `TInstance` is an unresolved type parameter here.
+        events: ['optionChanged', 'contentReady'] as unknown as readonly DxAdapterEventName<TInstance>[],
         read: (instance) => instance.pageIndex(),
         write: (instance, value) => void instance.pageIndex(value),
-        accept: (_eventName, eventArgs) =>
+        accept: (eventName, eventArgs) =>
+            (eventName as string) === 'contentReady' ||
             (eventArgs as DxOptionChangedArgs).name === 'paging',
     };
 }
@@ -276,10 +281,11 @@ function pageSizeAdapter<TInstance extends DxWidget & GridPagingLike>(): DxBindi
     number
 > {
     return {
-        events: ['optionChanged'] as unknown as readonly DxAdapterEventName<TInstance>[],
+        events: ['optionChanged', 'contentReady'] as unknown as readonly DxAdapterEventName<TInstance>[],
         read: (instance) => instance.pageSize(),
         write: (instance, value) => void instance.pageSize(value),
-        accept: (_eventName, eventArgs) =>
+        accept: (eventName, eventArgs) =>
+            (eventName as string) === 'contentReady' ||
             (eventArgs as DxOptionChangedArgs).name === 'paging',
     };
 }
