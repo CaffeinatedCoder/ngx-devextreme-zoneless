@@ -24,12 +24,14 @@ Angular signal  ◀──set────  widget event (optionChanged, selection
 - **DevExtreme / devextreme-angular** ≥ 25.1 (built and verified against 26.1)
 - **TypeScript** 6.0, `strict`, zero `any` in the public surface
 
-> **Why this library exists:** DevExpress officially still requires zone.js —
-> zoneless support for `devextreme-angular` has not been started and has no
-> ETA. Running DevExtreme zoneless is therefore outside the vendor-supported
-> configuration, and this library is the bridge. Its CI (a Playwright suite
-> driving every binding through a real zoneless app on every push) is the
-> compatibility net the vendor does not provide.
+> **Why this library exists:** DevExpress officially still requires zone.js.
+> As of 2026-08-10 DevExpress is *"considering zoneless Angular support for a
+> future release"* (ticket T1328486) — no ETA, and that thread is where an
+> invite to test will be announced if a release is set. Running DevExtreme
+> zoneless is therefore outside the vendor-supported configuration, and this
+> library is the bridge. Its CI (a Playwright suite driving every binding
+> through a real zoneless app on every push) is the compatibility net the
+> vendor does not provide.
 
 Everything is *derived from DevExtreme's own `Properties` declarations* via
 template-literal and conditional types — option names, option value types and
