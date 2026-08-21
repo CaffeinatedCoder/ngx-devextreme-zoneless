@@ -2,7 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Context7](https://img.shields.io/badge/Context7-Indexed-3B82F6)](https://context7.com/caffeinatedcoder/ngx-devextreme-zoneless)
-[![NPM](https://img.shields.io/badge/NPM-2.0.0-3B82F6)](https://www.npmjs.com/package/ngx-devextreme-zoneless)
+[![NPM](https://img.shields.io/badge/NPM-2.1.0-3B82F6)](https://www.npmjs.com/package/ngx-devextreme-zoneless)
 
 Strongly-typed **signal & zoneless change-detection adapters** for
 [DevExtreme Angular](https://js.devexpress.com/Angular/) components.
