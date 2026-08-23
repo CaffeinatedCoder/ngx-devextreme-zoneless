@@ -46,6 +46,34 @@ export function dxStructuralEquals(a: unknown, b: unknown): boolean {
     return false;
 }
 
+/**
+ * Structural clone with exactly the reach of {@link dxStructuralEquals}:
+ * plain objects and arrays are copied recursively, `Date` is re-created, and
+ * anything the comparer treats as opaque (class instances, functions,
+ * primitives) is carried over by reference.
+ *
+ * Needed wherever a widget mutates the value it was handed *in place* — most
+ * notably `dxForm`, which edits the bound `formData` object as the user types.
+ * Handing such a widget a clone keeps the signal's object graph private, so a
+ * structural comparison can still tell "before" from "after".
+ */
+export function dxStructuralClone<T>(value: T): T {
+    if (value instanceof Date) {
+        return new Date(value.getTime()) as T;
+    }
+    if (Array.isArray(value)) {
+        return value.map((item: unknown) => dxStructuralClone(item)) as T;
+    }
+    if (isPlainObject(value)) {
+        const result: Record<string, unknown> = {};
+        for (const key of Object.keys(value)) {
+            result[key] = dxStructuralClone(value[key]);
+        }
+        return result as T;
+    }
+    return value;
+}
+
 /** Shallow equality over the own enumerable keys of two plain objects. */
 export function dxShallowObjectEquals(a: unknown, b: unknown): boolean {
     if (Object.is(a, b)) {

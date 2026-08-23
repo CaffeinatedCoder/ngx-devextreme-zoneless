@@ -44,7 +44,14 @@ const ordersPagerInfo = (page: Page): Locator =>
 test.beforeEach(async ({ page, request }) => {
     await stubReset(request);
     await page.goto('/remote');
+    // Every screen must have finished its initial load before a test body runs:
+    // the stub's config (injected failures, latency, count spelling) and its
+    // stats are shared, so a screen still loading would eat an injected failure
+    // or skew a request count belonging to another screen.
     await expect(page.locator('#grid-remote-orders .dx-data-row').first()).toBeVisible();
+    await expect(page.locator('#grid-grouped .dx-group-row').first()).toBeVisible();
+    await expect(page.locator('#tree-nodes .dx-data-row').first()).toBeVisible();
+    await expect(page.locator('#lookup-customer')).toBeVisible();
 });
 
 test.describe('remote grid', () => {
@@ -265,5 +272,120 @@ test.describe('widget re-creation', () => {
         await expect(ordersRows(page).first()).toHaveText('Acme');
         await expect(ordersPagerInfo(page)).toHaveText('Page 1 of 1 (10 items)');
         await expect(readout(page, 'orders-error')).toHaveText('');
+    });
+});
+
+test.describe('cancellation scope', () => {
+    // `reload()` supersedes the *query*. A `byKey` lookup is scoped to a key
+    // the widget already holds, so aborting it along with the query loads
+    // leaves the editor permanently blank: the widget asked for a display
+    // text, got a rejection, and never asks again.
+    test('reload() does not cancel an in-flight byKey', async ({ page, request }) => {
+        await stubConfig(request, { delayMs: 400 });
+
+        await readout(page, 'lookup-set').click();
+        await page.waitForTimeout(80);
+        await readout(page, 'lookup-reload').click();
+
+        await expect(page.locator('#lookup-customer input.dx-texteditor-input')).toHaveValue(
+            'Cyberdyne',
+        );
+        await stubConfig(request, { delayMs: 0 });
+    });
+});
+
+test.describe('loader contract', () => {
+    // A load function that is not declared `async` throws synchronously. If
+    // that escapes the tracking, the in-flight count never comes back down:
+    // `isLoading` stays `true` for the rest of the session and the reason
+    // never reaches `error`.
+    test('a synchronously throwing load function settles isLoading and surfaces the error', async ({
+        page,
+    }) => {
+        await expect(readout(page, 'orders-loading')).toHaveText('idle');
+
+        await readout(page, 'orders-break').click();
+        await readout(page, 'orders-reload').click();
+
+        await expect(readout(page, 'orders-error')).toHaveText('sync loader failure');
+        await expect(readout(page, 'orders-loading')).toHaveText('idle');
+    });
+});
+
+test.describe('wire protocol conformance', () => {
+    // The protocol's reference server implementations aggregate counts into a
+    // decimal and spell a decimal as a quoted JSON string, so a conformant
+    // endpoint may answer `"120"` where DevExtreme's typings promise `120`.
+    // Forwarded untouched the pager concatenates instead of adding — a
+    // 120-row result renders as "Page 1 of 120 (1200 items)".
+    test('a string-spelled totalCount is read as a number', async ({ page, request }) => {
+        await stubConfig(request, { stringCounts: true });
+        await page.reload();
+        await expect(page.locator('#grid-remote-orders .dx-data-row').first()).toBeVisible();
+
+        await expect(ordersPagerInfo(page)).toHaveText('Page 1 of 12 (120 items)');
+
+        await stubConfig(request, { stringCounts: false });
+    });
+});
+
+test.describe('remote grouping and summaries', () => {
+    const groupRequests = (stats: StubStats): readonly StubLoadEntry[] =>
+        stats.history.filter((entry) => entry.path === '/api/grouped-orders' && entry['group'] !== undefined);
+
+    test('the group descriptor and both summary expressions reach the wire', async ({
+        page,
+        request,
+    }) => {
+        await expect(page.locator('#grid-grouped .dx-group-row').first()).toBeVisible();
+
+        const last = groupRequests(await stubStats(request)).at(-1);
+        // `isExpanded` rides on the group descriptor — the member that decides
+        // whether the server answers the protocol's collapsed shape
+        // (`{key, items: null, count}`) or a populated one.
+        expect(last?.['group']).toEqual([
+            { selector: 'status', desc: false, isExpanded: false },
+        ]);
+        expect(last?.['groupSummary']).toEqual([{ selector: 'amount', summaryType: 'sum' }]);
+        expect(last?.['totalSummary']).toEqual([{ selector: 'amount', summaryType: 'sum' }]);
+    });
+
+    test('a total summary from the envelope renders in the grid footer', async ({ page }) => {
+        await expect(page.locator('#grid-grouped .dx-datagrid-total-footer')).toContainText('Sum');
+    });
+
+    // `summary` is deliberately NOT coerced the way the counts are: it is
+    // positional and may legitimately carry a non-numeric aggregate, so a
+    // string-spelled summary must reach the consumer exactly as sent.
+    test('string-spelled summary values pass through untouched', async ({ page, request }) => {
+        await stubConfig(request, { stringCounts: true });
+        await page.reload();
+        await expect(page.locator('#grid-grouped .dx-datagrid-total-footer')).toContainText('Sum');
+        await stubConfig(request, { stringCounts: false });
+    });
+});
+
+test.describe('remote hierarchy (parentIds)', () => {
+    // `parentIds` is the one loadOptions member a TreeList adds, and the
+    // protocol's reference .NET server parses no such member — so a remote
+    // hierarchy is a contract between the widget and the consumer's endpoint.
+    // Dropping it client-side makes that contract unimplementable, which is
+    // what this pins.
+    test('roots load, and expanding a node requests its children by key', async ({
+        page,
+        request,
+    }) => {
+        const rows = page.locator('#tree-nodes .dx-data-row');
+        await expect(rows).toHaveCount(2);
+
+        await page.locator('#tree-nodes .dx-treelist-collapsed').first().click();
+
+        await expect(rows).toHaveCount(4);
+        const sent = (await stubStats(request)).history
+            .filter((entry) => entry.path === '/api/nodes')
+            .map((entry) => entry['parentIds']);
+        // The root read asks for DevExtreme's root sentinel (0, not null),
+        // then the expansion asks for the expanded row's own key.
+        expect(sent).toEqual([[0], [1]]);
     });
 });

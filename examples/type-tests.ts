@@ -99,6 +99,15 @@ const gridFilterOption: DxHostOptionName<Grid> = 'filterValue';
 const gridFocusOption: DxHostOptionName<Grid> = 'focusedRowKey';
 expectType<number | undefined>(undefined as DxHostOptionValue<Grid, 'focusedRowKey'>);
 
+/* `contentReady` is the post-layout re-read every method-based grid adapter
+ * (paging, grid state, search-panel text) depends on, and `searchByText` is
+ * the method `[(dxSearchPanelText)]` writes through — neither is checked at
+ * its declaration site, so both are pinned here. */
+const gridContentReadyEvent: DxHostEventName<Grid> = 'contentReady';
+declare const gridInstance_: DxInstanceOf<Grid>;
+expectType<(text: string) => void>(gridInstance_.searchByText);
+expectType<number>(gridInstance_.pageIndex());
+
 /* ------------------------------------------------------------------------ *
  * bindDxOption links option name and signal type
  * ------------------------------------------------------------------------ */

@@ -34,7 +34,7 @@ export type {
 } from './lib/value-types';
 
 // Equality helpers
-export { dxStructuralEquals, dxShallowObjectEquals } from './lib/equality';
+export { dxStructuralEquals, dxShallowObjectEquals, dxStructuralClone } from './lib/equality';
 export type { DxEqualityFn } from './lib/equality';
 
 // Readiness

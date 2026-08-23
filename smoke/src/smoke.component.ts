@@ -5,6 +5,7 @@ import DataSource from 'devextreme/data/data_source';
 import { DxChartModule } from 'devextreme-angular/ui/chart';
 import { DxCheckBoxModule } from 'devextreme-angular/ui/check-box';
 import { DxDataGridModule } from 'devextreme-angular/ui/data-grid';
+import { DxFormModule } from 'devextreme-angular/ui/form';
 import { DxPopupModule } from 'devextreme-angular/ui/popup';
 import { DxSelectBoxComponent, DxSelectBoxModule } from 'devextreme-angular/ui/select-box';
 import { DxSliderModule } from 'devextreme-angular/ui/slider';
@@ -23,6 +24,11 @@ import {
 
 type Status = 'Pending' | 'Shipped' | 'Delivered';
 
+interface Person {
+    firstName: string;
+    lastName: string;
+}
+
 interface Order {
     readonly id: number;
     readonly customer: string;
@@ -35,6 +41,7 @@ interface Order {
         DxChartModule,
         DxCheckBoxModule,
         DxDataGridModule,
+        DxFormModule,
         DxPopupModule,
         DxSelectBoxModule,
         DxSliderModule,
@@ -109,6 +116,55 @@ interface Order {
             <button data-testid="page-set" (click)="pageIndex.set(1)">go page 2</button>
             <span class="readout" data-testid="focus-readout">{{ focusedId() ?? 'null' }}</span>
             <button data-testid="focus-set" (click)="focusedId.set(2)">focus row 2</button>
+        </p>
+
+        <h3>Form data</h3>
+        <dx-form id="form-main" [(dxFormData)]="person" style="max-width:480px">
+            <dxi-item dataField="firstName" [editorOptions]="{ valueChangeEvent: 'input' }" />
+            <dxi-item dataField="lastName" [editorOptions]="{ valueChangeEvent: 'input' }" />
+        </dx-form>
+        <p>
+            <span class="readout" data-testid="form-readout">{{ person() | json }}</span>
+            <span class="readout" data-testid="form-emits">emits: {{ personEmits() }}</span>
+            <button data-testid="form-set" (click)="person.set({ firstName: 'Set', lastName: 'FromSignal' })">
+                set signal
+            </button>
+        </p>
+
+        <h3>Grid search panel</h3>
+        <dx-data-grid
+            id="grid-search"
+            [(dxSearchPanelText)]="gridSearch"
+            [dataSource]="orders()"
+            keyExpr="id"
+            style="max-width:480px">
+            <dxo-search-panel [visible]="true" />
+            <dxi-column dataField="id" />
+            <dxi-column dataField="customer" />
+        </dx-data-grid>
+        <p>
+            <span class="readout" data-testid="search-readout">{{ gridSearch() }}</span>
+            <button data-testid="search-set" (click)="gridSearch.set('Globex')">search Globex</button>
+            <button data-testid="search-clear" (click)="gridSearch.set('')">clear</button>
+        </p>
+
+        <h3>Grid state</h3>
+        <dx-data-grid
+            id="grid-state"
+            [(dxGridState)]="gridState"
+            [dxGridStateDebounce]="50"
+            [dataSource]="orders()"
+            keyExpr="id"
+            style="max-width:480px">
+            <dxo-paging [pageSize]="2" />
+            <dxi-column dataField="id" />
+            <dxi-column dataField="customer" />
+        </dx-data-grid>
+        <p>
+            <span class="readout" data-testid="state-page">{{ gridState() === undefined ? 'undefined' : (gridState() | json) }}</span>
+            <span class="readout" data-testid="state-emits">emits: {{ gridStateEmits() }}</span>
+            <button data-testid="state-restore" (click)="restoreState()">restore page 2</button>
+            <button data-testid="state-reset" (click)="gridState.set(null)">reset layout</button>
         </p>
 
         <h3>Popup</h3>
@@ -199,6 +255,11 @@ export class SmokeComponent {
     readonly pageIndex = signal(0);
     readonly focusedId = signal<number | null>(null);
     readonly popupVisible = signal(false);
+    readonly person = signal<Person>({ firstName: 'Ada', lastName: 'Lovelace' });
+    readonly personEmits = signal(0);
+    readonly gridState = signal<Record<string, unknown> | null | undefined>(undefined);
+    readonly gridStateEmits = signal(0);
+    readonly gridSearch = signal('');
     readonly points = signal<readonly DxChartSelectedPoint[]>([]);
 
     readonly statuses: Status[] = ['Pending', 'Shipped', 'Delivered'];
@@ -249,7 +310,23 @@ export class SmokeComponent {
                 this.focusInCount.update((count) => count + 1);
             }
         });
+        // Counts how often the form-data signal actually notifies.
+        effect(() => {
+            this.person();
+            untracked(() => this.personEmits.update((n) => n + 1));
+        });
+        effect(() => {
+            this.gridState();
+            untracked(() => this.gridStateEmits.update((n) => n + 1));
+        });
         bindDxOption(this.recreateBox, 'value', this.recreateText);
+    }
+
+    restoreState(): void {
+        const current = this.gridState();
+        if (current) {
+            this.gridState.set({ ...current, pageIndex: 1 });
+        }
     }
 
     addOrder(): void {

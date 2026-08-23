@@ -8,6 +8,7 @@ import { DxTreeViewComponent } from 'devextreme-angular/ui/tree-view';
 import {
     DxBindingDirectiveBase,
     DxSelectedRowKeysDirectiveBase,
+    dxStructuralClone,
     type DxAdapterEventName,
     type DxBindingAdapter,
     type DxDateValue,
@@ -94,11 +95,14 @@ export class DxSchedulerCurrentViewDirective extends DxBindingDirectiveBase {
 /**
  * `[(dxFormData)]` for `dx-form`.
  *
- * DevExtreme mutates the bound `formData` object in place while the user
- * edits, so the adapter listens to `fieldDataChanged` and emits a *shallow
- * copy* on every change — the signal therefore always yields a fresh
- * reference, which keeps `computed()` consumers and `OnPush`/zoneless views
- * reliably up to date.
+ * DevExtreme edits the bound `formData` object **in place** as the user types.
+ * Handing the widget the signal's own object would therefore make both sides
+ * of the binding observe the same mutation, and the structural comparison that
+ * guards the widget → signal direction could never see a difference — the
+ * signal would silently stop emitting. The adapter keeps the two graphs
+ * separate instead: it writes a structural clone into the widget and reads one
+ * back out, so every edit yields a genuinely new value and `computed()`
+ * consumers and zoneless views stay up to date.
  */
 @Directive({ selector: 'dx-form[dxFormData]', exportAs: 'dxFormData' })
 export class DxFormDataDirective<
@@ -110,9 +114,12 @@ export class DxFormDataDirective<
         super();
         const adapter: DxBindingAdapter<DxInstanceOf<DxFormComponent>, TFormData> = {
             events: ['fieldDataChanged', 'optionChanged'],
-            read: (instance) => ({ ...(instance.option('formData') as TFormData) }),
+            read: (instance) => dxStructuralClone(instance.option('formData') as TFormData),
             write: (instance, value) => {
-                (instance.option as (name: string, value: unknown) => void)('formData', value);
+                (instance.option as (name: string, value: unknown) => void)(
+                    'formData',
+                    dxStructuralClone(value),
+                );
             },
             accept: (eventName, eventArgs) =>
                 eventName !== 'optionChanged' ||
@@ -362,6 +369,97 @@ export class DxTreeListPageSizeDirective<
     }
 }
 
+/* Structural view of the search API shared by dxDataGrid and dxTreeList. */
+interface GridSearchLike {
+    searchByText(text: string): void;
+}
+
+/**
+ * The search panel's phrase lives under the nested `searchPanel` option
+ * (`searchPanel.text`), which option-name typing deliberately does not cover
+ * — this adapter writes through the `searchByText()` method and reads the
+ * nested option back, listening for the `searchPanel` option change. Like the
+ * paging adapters it also re-reads on `contentReady`, because the search text
+ * is part of the layout state: a `[(dxGridState)]` restore applies it through
+ * the state machinery rather than through a `searchPanel` `optionChanged`.
+ *
+ * A widget with no search text reports `undefined`; the binding normalizes
+ * that to `''` so the model type stays a plain `string` and "cleared" has one
+ * representation instead of two.
+ */
+function searchPanelTextAdapter<TInstance extends DxWidget & GridSearchLike>(): DxBindingAdapter<
+    TInstance,
+    string
+> {
+    return {
+        events: ['optionChanged', 'contentReady'] as unknown as readonly DxAdapterEventName<TInstance>[],
+        read: (instance) =>
+            ((instance.option as (name: string) => unknown)('searchPanel.text') as
+                | string
+                | undefined) ?? '',
+        write: (instance, value) => instance.searchByText(value),
+        accept: (eventName, eventArgs) =>
+            (eventName as string) === 'contentReady' ||
+            (eventArgs as DxOptionChangedArgs).name === 'searchPanel',
+    };
+}
+
+/**
+ * `[(dxSearchPanelText)]` for `dx-data-grid` — two-way binds the search
+ * panel's phrase to a signal, so the grid's own search box can drive query
+ * state that lives outside the widget:
+ *
+ * ```html
+ * <dx-data-grid [(dxSearchPanelText)]="search" [dxSearchPanelTextDebounce]="300">
+ *   <dxo-search-panel [visible]="true" />
+ * </dx-data-grid>
+ * ```
+ *
+ * Pairing it with `dxRemoteStore({ deps: [search] })` turns the built-in
+ * search box into a server-side search without an external input. Widget →
+ * signal reads are debounced via `dxSearchPanelTextDebounce` (default 0);
+ * that debounce is this binding's, and is independent of the widget's own
+ * `searchPanel` timeout.
+ */
+@Directive({ selector: 'dx-data-grid[dxSearchPanelText]', exportAs: 'dxSearchPanelText' })
+export class DxDataGridSearchPanelTextDirective<
+    TRowData = unknown,
+    TKey = unknown,
+> extends DxBindingDirectiveBase {
+    readonly dxSearchPanelText = model.required<string>();
+    readonly dxSearchPanelTextDebounce = input(0);
+
+    constructor() {
+        super();
+        this.bindAdapter<DxDataGridComponent<TRowData, TKey>, string>(
+            inject(DxDataGridComponent, { self: true }),
+            this.dxSearchPanelText,
+            searchPanelTextAdapter<DxInstanceOf<DxDataGridComponent<TRowData, TKey>>>(),
+            { debounceMs: () => this.dxSearchPanelTextDebounce() },
+        );
+    }
+}
+
+/** `[(dxSearchPanelText)]` for `dx-tree-list` — see {@link DxDataGridSearchPanelTextDirective}. */
+@Directive({ selector: 'dx-tree-list[dxSearchPanelText]', exportAs: 'dxSearchPanelText' })
+export class DxTreeListSearchPanelTextDirective<
+    TRowData = unknown,
+    TKey = unknown,
+> extends DxBindingDirectiveBase {
+    readonly dxSearchPanelText = model.required<string>();
+    readonly dxSearchPanelTextDebounce = input(0);
+
+    constructor() {
+        super();
+        this.bindAdapter<DxTreeListComponent<TRowData, TKey>, string>(
+            inject(DxTreeListComponent, { self: true }),
+            this.dxSearchPanelText,
+            searchPanelTextAdapter<DxInstanceOf<DxTreeListComponent<TRowData, TKey>>>(),
+            { debounceMs: () => this.dxSearchPanelTextDebounce() },
+        );
+    }
+}
+
 /**
  * A serialized grid layout state as produced by the `state()` method —
  * column order/width/sort, paging, selection, search text, ... The shape is
@@ -376,10 +474,23 @@ function gridStateAdapter<TInstance extends DxWidget & GridStateLike>(): DxBindi
 > {
     return {
         // Any option change may affect the persisted state; structural
-        // equality drops the reads that turn out not to.
-        events: ['optionChanged'] as unknown as readonly DxAdapterEventName<TInstance>[],
+        // equality drops the reads that turn out not to. `contentReady` is
+        // listened to as well because a grid only *has* a layout state once
+        // it has rendered: at `initialized` time — when this binding attaches
+        // — `state()` still reports `{}`, and without a post-layout re-read
+        // the signal would keep that empty snapshot forever.
+        events: ['optionChanged', 'contentReady'] as unknown as readonly DxAdapterEventName<TInstance>[],
         read: (instance) => instance.state() as DxGridState,
-        write: (instance, value) => instance.state(value ?? null),
+        write: (instance, value) => {
+            // The empty snapshot above must never travel back into the
+            // widget: `state({})` wipes the very layout the binding exists to
+            // restore. Only a real state or an explicit `null` (reset) is
+            // written.
+            if (value !== null && value !== undefined && Object.keys(value).length === 0) {
+                return;
+            }
+            instance.state(value ?? null);
+        },
     };
 }
 
@@ -440,6 +551,7 @@ export const DX_DATA_DIRECTIVES = [
     DxDataGridFocusedRowKeyDirective,
     DxDataGridPageIndexDirective,
     DxDataGridPageSizeDirective,
+    DxDataGridSearchPanelTextDirective,
     DxDataGridSelectedRowKeysDirective,
     DxDataGridStateDirective,
     DxFormDataDirective,
@@ -450,6 +562,7 @@ export const DX_DATA_DIRECTIVES = [
     DxTreeListFocusedRowKeyDirective,
     DxTreeListPageIndexDirective,
     DxTreeListPageSizeDirective,
+    DxTreeListSearchPanelTextDirective,
     DxTreeListSelectedRowKeysDirective,
     DxTreeListStateDirective,
     DxTreeViewSelectedNodeKeysDirective,

@@ -1,5 +1,6 @@
 import { Component, computed, signal, untracked } from '@angular/core';
 import { DxDataGridModule } from 'devextreme-angular/ui/data-grid';
+import { DxTreeListModule } from 'devextreme-angular/ui/tree-list';
 import { DxSelectBoxModule } from 'devextreme-angular/ui/select-box';
 import {
     DX_SIGNAL_DIRECTIVES,
@@ -25,6 +26,14 @@ interface Order {
     readonly customer: string;
     readonly status: string;
     readonly amount: number;
+}
+
+interface TreeNode {
+    readonly id: number;
+    readonly parentId: number;
+    readonly name: string;
+    readonly kind: string;
+    readonly hasItems: boolean;
 }
 
 interface Customer {
@@ -57,7 +66,7 @@ function combineFilters(
 
 @Component({
     selector: 'app-remote',
-    imports: [DxDataGridModule, DxSelectBoxModule, DX_SIGNAL_DIRECTIVES],
+    imports: [DxDataGridModule, DxSelectBoxModule, DxTreeListModule, DX_SIGNAL_DIRECTIVES],
     template: `
         <h3>Remote grid (dxRemoteStore + external filter signals)</h3>
         <div class="row">
@@ -74,6 +83,7 @@ function combineFilters(
             <span class="readout" data-testid="orders-loading">{{ orders.isLoading() ? 'loading' : 'idle' }}</span>
             <span class="readout" data-testid="orders-error">{{ ordersError() }}</span>
             <button data-testid="orders-reload" (click)="orders.reload()">reload</button>
+            <button data-testid="orders-break" (click)="breakLoader.set(true)">break loader</button>
             <span class="readout" data-testid="orders-page">{{ ordersPage() }}</span>
         </div>
         @if (showOrdersGrid()) {
@@ -127,6 +137,37 @@ function combineFilters(
             <span class="readout" data-testid="detail-customer">{{ selectedCustomerId() ?? 'none' }}</span>
         </p>
 
+        <h3>Grouped + summarized grid (remote grouping half)</h3>
+        <dx-data-grid
+            id="grid-grouped"
+            [dataSource]="groupedOrders.dataSource"
+            [remoteOperations]="true"
+            style="max-width:560px">
+            <dxo-group-panel [visible]="false" />
+            <dxo-paging [pageSize]="5" />
+            <dxi-column dataField="status" [groupIndex]="0" />
+            <dxi-column dataField="id" [width]="70" />
+            <dxi-column dataField="amount" />
+            <dxo-summary>
+                <dxi-total-item column="amount" summaryType="sum" />
+                <dxi-group-item column="amount" summaryType="sum" [showInGroupFooter]="false" />
+            </dxo-summary>
+        </dx-data-grid>
+
+        <h3>TreeList with remote hierarchy (parentIds)</h3>
+        <dx-tree-list
+            id="tree-nodes"
+            [dataSource]="nodes.dataSource"
+            [remoteOperations]="{ filtering: true }"
+            keyExpr="id"
+            parentIdExpr="parentId"
+            hasItemsExpr="hasItems"
+            [showBorders]="true"
+            style="max-width:420px">
+            <dxi-column dataField="name" />
+            <dxi-column dataField="kind" />
+        </dx-tree-list>
+
         <h3>Lookup editor (debounced search + byKey)</h3>
         <div class="row">
             <dx-select-box
@@ -140,6 +181,7 @@ function combineFilters(
                 style="width: 260px" />
             <span class="readout" data-testid="lookup-readout">{{ lookupId() ?? 'null' }}</span>
             <button data-testid="lookup-set" (click)="lookupId.set(9)">set customer 9</button>
+            <button data-testid="lookup-reload" (click)="customerLookup.reload()">reload lookup</button>
         </div>
     `,
     styles: `
@@ -152,12 +194,18 @@ export class RemoteComponent {
     readonly status = signal<string | null>(null);
     readonly ordersPage = signal(0);
     readonly showOrdersGrid = signal(true);
+    readonly breakLoader = signal(false);
 
     readonly orders = dxRemoteStore<Order, number>({
         key: 'id',
         deps: [this.search, this.status],
         debounce: 300,
-        load: (options, signal) => this.loadOrders(options, signal),
+        load: (options, signal) => {
+            if (untracked(this.breakLoader)) {
+                throw new Error('sync loader failure');
+            }
+            return this.loadOrders(options, signal);
+        },
     });
 
     readonly ordersError = computed(() => {
@@ -190,6 +238,23 @@ export class RemoteComponent {
             const params = dxLoadOptionsParams({ ...options, filter });
             return fetchJson<LoadResult<Order>>(`/api/orders?${params}`, signal);
         },
+    });
+
+    // --- screen (d): remote grouping, summaries ------------------------------
+    readonly groupedOrders = dxRemoteStore<Order, number>({
+        key: 'id',
+        load: async (options, signal) =>
+            fetchJson<LoadResult<Order>>(
+                `/api/grouped-orders?${dxLoadOptionsParams(options)}`,
+                signal,
+            ),
+    });
+
+    // --- screen (e): remote hierarchy through `parentIds` --------------------
+    readonly nodes = dxRemoteStore<TreeNode, number>({
+        key: 'id',
+        load: async (options, signal) =>
+            fetchJson<LoadResult<TreeNode>>(`/api/nodes?${dxLoadOptionsParams(options)}`, signal),
     });
 
     // --- screen (c): lookup with byKey --------------------------------------

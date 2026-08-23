@@ -44,14 +44,36 @@ const orders = Array.from({ length: 120 }, (unused, index) => {
     };
 });
 
+// A small hierarchy for the TreeList's remote lazy loading. `parentId` is the
+// hierarchy's own field; the *protocol* member that carries the expanding rows
+// is `parentIds`, which the endpoint below answers on.
+// Roots carry `parentId: 0`, not null: DevExtreme's TreeList defaults
+// `rootValue` to 0 and asks for the roots as `parentIds: [0]`.
+const nodes = [
+    { id: 1, parentId: 0, name: 'Europe', kind: 'region' },
+    { id: 2, parentId: 0, name: 'Americas', kind: 'region' },
+    { id: 3, parentId: 1, name: 'Germany', kind: 'country' },
+    { id: 4, parentId: 1, name: 'France', kind: 'country' },
+    { id: 5, parentId: 2, name: 'Canada', kind: 'country' },
+    { id: 6, parentId: 3, name: 'Berlin', kind: 'city' },
+    { id: 7, parentId: 3, name: 'Hamburg', kind: 'city' },
+    { id: 8, parentId: 4, name: 'Paris', kind: 'city' },
+    { id: 9, parentId: 5, name: 'Toronto', kind: 'city' },
+];
+
 const DATASETS = new Map([
     ['/api/orders', orders],
+    // Same rows on a second path: the grouped/summarized screen must not add
+    // traffic to `/api/orders`, whose request counts and injected failures the
+    // paging, debounce and error tests assert against.
+    ['/api/grouped-orders', orders],
     ['/api/customers', customers],
+    ['/api/nodes', nodes],
 ]);
 
 // --- injectable behavior + observability -------------------------------------
 
-const defaultConfig = () => ({ delayMs: 0, failCount: 0, failStatus: 500 });
+const defaultConfig = () => ({ delayMs: 0, failCount: 0, failStatus: 500, stringCounts: false });
 const defaultStats = () => ({ requests: 0, byPath: {}, last: {}, history: [] });
 let config = defaultConfig();
 let stats = defaultStats();
@@ -68,7 +90,7 @@ function parseLoadOptions(searchParams) {
         const value = searchParams.get(key);
         if (value !== null) loadOptions[key] = value === 'true';
     }
-    for (const key of ['filter', 'sort', 'group', 'select']) {
+    for (const key of ['filter', 'sort', 'group', 'select', 'totalSummary', 'groupSummary', 'parentIds']) {
         const value = searchParams.get(key);
         if (value !== null) loadOptions[key] = JSON.parse(value);
     }
@@ -129,10 +151,39 @@ function applySort(data, sort) {
     return sorted;
 }
 
-function applyGroup(data, group) {
+/**
+ * Positional summary values, in the order the descriptors were given —
+ * the protocol never echoes a selector back, so position is the only key.
+ */
+function computeSummary(rows, descriptors) {
+    const list = Array.isArray(descriptors) ? descriptors : [descriptors];
+    return list.map((descriptor) => {
+        const selector = typeof descriptor === 'string' ? descriptor : descriptor.selector;
+        const type = typeof descriptor === 'string' ? 'count' : descriptor.summaryType ?? 'count';
+        const values = rows.map((row) => row[selector]);
+        const numbers = values.filter((value) => typeof value === 'number');
+        let result;
+        switch (type) {
+            case 'count': result = rows.length; break;
+            case 'sum': result = numbers.reduce((total, value) => total + value, 0); break;
+            case 'avg': result = numbers.length === 0 ? null : numbers.reduce((t, v) => t + v, 0) / numbers.length; break;
+            case 'min': result = numbers.length === 0 ? null : Math.min(...numbers); break;
+            case 'max': result = numbers.length === 0 ? null : Math.max(...numbers); break;
+            default: result = null;
+        }
+        // A decimal-backed server spells an aggregate as a quoted string; the
+        // `stringCounts` switch reproduces that spelling here too.
+        return config.stringCounts && typeof result === 'number' ? String(result) : result;
+    });
+}
+
+function applyGroup(data, group, groupSummary) {
     const entry = Array.isArray(group) ? group[0] : group;
     const selector = typeof entry === 'string' ? entry : entry.selector;
     const desc = typeof entry === 'object' && entry.desc === true;
+    // A group is collapsed unless the widget says otherwise: the protocol's
+    // collapsed shape is `{key, items: null, count}`.
+    const expanded = typeof entry === 'object' && entry.isExpanded === true;
     const buckets = new Map();
     for (const item of data) {
         const key = item[selector];
@@ -144,11 +195,29 @@ function applyGroup(data, group) {
         const right = normalize(b);
         return (left < right ? -1 : left > right ? 1 : 0) * (desc ? -1 : 1);
     });
-    return keys.map((key) => ({ key, items: null, count: buckets.get(key).length }));
+    return keys.map((key) => {
+        const rows = buckets.get(key);
+        const groupItem = { key, items: expanded ? rows : null, count: rows.length };
+        // `summary` is absent unless `groupSummary` asked for it.
+        if (groupSummary !== undefined) {
+            groupItem.summary = computeSummary(rows, groupSummary);
+        }
+        return groupItem;
+    });
 }
 
-function loadDataset(dataset, loadOptions) {
+function loadDataset(dataset, loadOptions, path) {
     let data = dataset;
+    // Hierarchical read: answer the children of the expanding rows. Absent
+    // `parentIds` the widget is asking for the roots. The reference .NET
+    // server parses no such member — a remote hierarchy is a contract between
+    // the widget and this endpoint, which is exactly what it is proving here.
+    if (path === '/api/nodes') {
+        const parentIds = loadOptions.parentIds;
+        const wanted = Array.isArray(parentIds) ? parentIds : parentIds === undefined ? [0] : [parentIds];
+        data = data.filter((node) => wanted.some((parent) => node.parentId === parent));
+        return { data: data.map((node) => ({ ...node, hasItems: dataset.some((c) => c.parentId === node.id) })) };
+    }
     if (loadOptions.filter !== undefined) {
         data = data.filter((item) => evaluateFilter(loadOptions.filter, item));
     }
@@ -157,11 +226,15 @@ function loadDataset(dataset, loadOptions) {
         data = applySort(data, loadOptions.sort);
     }
     if (loadOptions.group !== undefined) {
-        let groups = applyGroup(data, loadOptions.group);
+        let groups = applyGroup(data, loadOptions.group, loadOptions.groupSummary);
         const groupCount = loadOptions.requireGroupCount ? groups.length : undefined;
         if (loadOptions.skip) groups = groups.slice(loadOptions.skip);
         if (loadOptions.take !== undefined) groups = groups.slice(0, loadOptions.take);
-        return { data: groups, totalCount, groupCount };
+        const groupedSummary =
+            loadOptions.totalSummary === undefined
+                ? undefined
+                : computeSummary(data, loadOptions.totalSummary);
+        return spellCounts({ data: groups, totalCount, groupCount, summary: groupedSummary });
     }
     if (loadOptions.skip) data = data.slice(loadOptions.skip);
     if (loadOptions.take !== undefined) data = data.slice(0, loadOptions.take);
@@ -169,7 +242,21 @@ function loadDataset(dataset, loadOptions) {
         const fields = Array.isArray(loadOptions.select) ? loadOptions.select : [loadOptions.select];
         data = data.map((item) => Object.fromEntries(fields.map((field) => [field, item[field]])));
     }
-    return { data, totalCount };
+    const summary =
+        loadOptions.totalSummary === undefined
+            ? undefined
+            : computeSummary(dataset, loadOptions.totalSummary);
+    return spellCounts({ data, totalCount, summary });
+}
+
+// DevExtreme.AspNet.Data spells decimals as quoted JSON strings, so a server whose
+// counts/summaries come back as decimal answers `"42"` where the typings promise 42.
+function spellCounts(result) {
+    if (!config.stringCounts) return result;
+    const out = { ...result };
+    if (out.totalCount !== undefined) out.totalCount = String(out.totalCount);
+    if (out.groupCount !== undefined) out.groupCount = String(out.groupCount);
+    return out;
 }
 
 // --- server -------------------------------------------------------------------
@@ -222,7 +309,7 @@ const server = createServer(async (request, response) => {
             config.failCount -= 1;
             return sendJson(response, config.failStatus, { message: 'injected failure' });
         }
-        return sendJson(response, 200, loadDataset(dataset, loadOptions));
+        return sendJson(response, 200, loadDataset(dataset, loadOptions, url.pathname));
     } catch (error) {
         return sendJson(response, 400, { message: String(error?.message ?? error) });
     }

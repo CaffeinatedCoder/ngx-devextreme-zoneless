@@ -271,3 +271,128 @@ test.describe('widget re-creation (composition API on viewChild)', () => {
         await expect(input).toHaveValue('pushed-into-new-widget');
     });
 });
+
+test.describe('form [(dxFormData)]', () => {
+    const firstName = (page: Page): Locator =>
+        page.locator('#form-main .dx-field-item').first().locator('input.dx-texteditor-input');
+    const emits = async (page: Page): Promise<number> =>
+        Number((await readout(page, 'form-emits').textContent())?.replace(/\D/g, ''));
+
+    // dxForm is the one widget that edits the value it was handed *in place*.
+    // If the widget and the signal share an object graph, the structural
+    // comparison guarding the widget → signal direction can never see a
+    // difference and the signal silently stops emitting — the readout below
+    // would keep rendering the pre-edit value.
+    test('widget → signal: editing a field emits a new value', async ({ page }) => {
+        await expect(readout(page, 'form-readout')).toContainText('Ada');
+        const before = await emits(page);
+
+        await firstName(page).fill('');
+        await firstName(page).pressSequentially('Grace');
+
+        await expect(readout(page, 'form-readout')).toContainText('Grace');
+        expect(await emits(page)).toBeGreaterThan(before);
+    });
+
+    test('widget → signal: an edit leaves the untouched fields intact', async ({ page }) => {
+        await firstName(page).fill('');
+        await firstName(page).pressSequentially('Grace');
+        await expect(readout(page, 'form-readout')).toContainText('Grace');
+        await expect(readout(page, 'form-readout')).toContainText('Lovelace');
+    });
+
+    test('signal → widget: setting the signal updates the editors', async ({ page }) => {
+        await readout(page, 'form-set').click();
+        await expect(firstName(page)).toHaveValue('Set');
+        await expect(readout(page, 'form-readout')).toContainText('FromSignal');
+    });
+});
+
+test.describe('data grid [(dxGridState)]', () => {
+    const widgetState = (page: Page): Promise<unknown> =>
+        page.evaluate(() => {
+            const element = document.querySelector('#grid-state') as HTMLElement;
+            const ng = (
+                window as unknown as {
+                    ng: { getComponent(e: HTMLElement): { instance: { state(): unknown } } };
+                }
+            ).ng;
+            return ng.getComponent(element).instance.state();
+        });
+
+    // The binding attaches at `initialized`, when a grid still reports `{}` as
+    // its state — the real layout only exists after the first render. Without
+    // the post-layout re-read the signal would hold that empty snapshot
+    // forever, and a consumer persisting it would save an empty layout.
+    test('widget → signal: the signal holds the real layout, not the pre-render snapshot', async ({
+        page,
+    }) => {
+        await expect(page.locator('#grid-state .dx-data-row').first()).toBeVisible();
+        await expect
+            .poll(async () => JSON.parse((await readout(page, 'state-page').textContent()) ?? '{}'))
+            .toEqual(await widgetState(page));
+        expect(
+            JSON.parse((await readout(page, 'state-page').textContent()) ?? '{}'),
+        ).toHaveProperty('columns');
+    });
+
+    test('signal → widget: a saved layout is restored', async ({ page }) => {
+        await expect(page.locator('#grid-state .dx-data-row').first()).toBeVisible();
+        await expect(readout(page, 'state-page')).toContainText('columns');
+
+        await readout(page, 'state-restore').click();
+
+        await expect
+            .poll(() =>
+                page.evaluate(() => {
+                    const element = document.querySelector('#grid-state') as HTMLElement;
+                    const ng = (
+                        window as unknown as {
+                            ng: {
+                                getComponent(e: HTMLElement): { instance: { pageIndex(): number } };
+                            };
+                        }
+                    ).ng;
+                    return ng.getComponent(element).instance.pageIndex();
+                }),
+            )
+            .toBe(1);
+    });
+});
+
+test.describe('data grid [(dxSearchPanelText)]', () => {
+    const searchInput = (page: Page): Locator =>
+        page.locator('#grid-search .dx-datagrid-search-panel input');
+    const rows = (page: Page): Locator => page.locator('#grid-search .dx-data-row');
+
+    test('widget → signal: typing in the search panel updates the readout', async ({ page }) => {
+        await expect(rows(page)).toHaveCount(3);
+
+        await searchInput(page).pressSequentially('Initech');
+
+        await expect(readout(page, 'search-readout')).toHaveText('Initech');
+        await expect(rows(page)).toHaveCount(1);
+    });
+
+    test('signal → widget: setting the signal searches the grid', async ({ page }) => {
+        await expect(rows(page)).toHaveCount(3);
+
+        await readout(page, 'search-set').click();
+
+        await expect(searchInput(page)).toHaveValue('Globex');
+        await expect(rows(page)).toHaveCount(1);
+    });
+
+    // The widget reports no search text as `undefined`; the adapter normalizes
+    // that to `''` so "cleared" has a single representation on the model side.
+    test('clearing round-trips as an empty string, not undefined', async ({ page }) => {
+        await readout(page, 'search-set').click();
+        await expect(rows(page)).toHaveCount(1);
+
+        await readout(page, 'search-clear').click();
+
+        await expect(rows(page)).toHaveCount(3);
+        await expect(readout(page, 'search-readout')).toHaveText('');
+        await expect(searchInput(page)).toHaveValue('');
+    });
+});

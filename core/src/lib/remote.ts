@@ -46,7 +46,10 @@ export interface DxRemoteStoreOptions<TItem, TKey> {
      * DevExtreme.AspNet.Data endpoint this is a filtered load:
      * `load({ filter: ['id', '=', key], take: 1 })`, taking the first item.
      * `byKey` activity does not drive `isLoading`/`error` — its failures
-     * surface through the requesting widget.
+     * surface through the requesting widget. It is also *not* cancelled by
+     * `reload()`: a key lookup is scoped to a key the widget already holds,
+     * not to the query, so a new query has no bearing on it. Only injector
+     * destruction aborts an in-flight `byKey`.
      */
     readonly byKey?: (key: TKey, abortSignal: AbortSignal) => PromiseLike<TItem>;
     /** Key expression handed to the underlying store (replaces `keyExpr` on the widget). */
@@ -128,6 +131,41 @@ export interface DxRemoteStore<TItem, TKey = unknown> {
  * out of this API — pass a full `CustomStore` to the widget where you need
  * editing.
  */
+/**
+ * Normalizes the counts in a `LoadResult` envelope.
+ *
+ * DevExtreme types `totalCount` and `groupCount` as `number`, but the wire
+ * protocol's reference server implementations aggregate counts into a decimal
+ * and spell a decimal as a **quoted JSON string** — so a conformant endpoint
+ * may answer `"120"` where the typings promise `120`. Forwarded as-is, the
+ * grid's pager arithmetic silently concatenates instead of adding: a measured
+ * 120-row result renders as "Page 1 of 120 (1200 items)".
+ *
+ * Only these two fields are coerced, and only when the string parses as a
+ * finite number. `summary` is deliberately left alone: it is positional and
+ * may legitimately carry non-numeric aggregates (a `min` over a string or date
+ * column), so blind coercion there would corrupt real values.
+ */
+function normalizeCounts<TItem>(result: LoadResult<TItem>): LoadResult<TItem> {
+    if (Array.isArray(result) || result === null || typeof result !== 'object') {
+        return result;
+    }
+    let normalized: Record<string, unknown> | undefined;
+    for (const key of ['totalCount', 'groupCount'] as const) {
+        const value: unknown = (result as Record<string, unknown>)[key];
+        if (typeof value !== 'string') {
+            continue;
+        }
+        const parsed = Number(value);
+        if (value.trim() === '' || !Number.isFinite(parsed)) {
+            continue;
+        }
+        normalized ??= { ...(result as Record<string, unknown>) };
+        normalized[key] = parsed;
+    }
+    return (normalized ?? result) as LoadResult<TItem>;
+}
+
 export function dxRemoteStore<TItem, TKey = unknown>(
     options: DxRemoteStoreOptions<TItem, TKey>,
 ): DxRemoteStore<TItem, TKey> {
@@ -139,24 +177,38 @@ export function dxRemoteStore<TItem, TKey = unknown>(
     const pendingCount = signal(0);
     const lastError = signal<unknown>(undefined);
     let loadSequence = 0;
-    const inFlight = new Set<AbortController>();
+    /** Query-scoped loads: superseded by `reload()`, aborted on destroy. */
+    const inFlightLoads = new Set<AbortController>();
+    /** Key-scoped lookups: aborted on destroy only — see `byKey` above. */
+    const inFlightByKey = new Set<AbortController>();
 
     const trackedLoad = (loadOptions: LoadOptions<TItem>): Promise<LoadResult<TItem>> => {
         const sequence = ++loadSequence;
         const controller = new AbortController();
-        inFlight.add(controller);
+        inFlightLoads.add(controller);
         pendingCount.update((count) => count + 1);
         const settle = (): void => {
-            inFlight.delete(controller);
+            inFlightLoads.delete(controller);
             pendingCount.update((count) => count - 1);
         };
-        return Promise.resolve(options.load(loadOptions, controller.signal)).then(
+        // A load function that is not declared `async` can throw *synchronously*
+        // while it builds its request (a bad dependency, a filter that will not
+        // serialize, …). Funnel that into the same rejection path — otherwise
+        // the tracking never settles and `isLoading` stays `true` forever while
+        // the reason never reaches `error`.
+        let pending: PromiseLike<LoadResult<TItem>>;
+        try {
+            pending = options.load(loadOptions, controller.signal);
+        } catch (reason) {
+            pending = Promise.reject(reason);
+        }
+        return Promise.resolve(pending).then(
             (result) => {
                 settle();
                 if (sequence === loadSequence) {
                     lastError.set(undefined);
                 }
-                return result;
+                return normalizeCounts(result);
             },
             (reason: unknown) => {
                 settle();
@@ -182,9 +234,17 @@ export function dxRemoteStore<TItem, TKey = unknown>(
             ? undefined
             : (key: TKey): PromiseLike<TItem> => {
                   const controller = new AbortController();
-                  inFlight.add(controller);
-                  return Promise.resolve(userByKey(key, controller.signal)).finally(() =>
-                      inFlight.delete(controller),
+                  inFlightByKey.add(controller);
+                  // Same synchronous-throw guard as `trackedLoad`, so a
+                  // non-`async` `byKey` cannot leak its controller.
+                  let pending: PromiseLike<TItem>;
+                  try {
+                      pending = userByKey(key, controller.signal);
+                  } catch (reason) {
+                      pending = Promise.reject(reason);
+                  }
+                  return Promise.resolve(pending).finally(() =>
+                      inFlightByKey.delete(controller),
                   );
               };
 
@@ -198,8 +258,9 @@ export function dxRemoteStore<TItem, TKey = unknown>(
         }),
     });
 
-    const abortInFlight = (): void => {
-        for (const controller of inFlight) {
+    /** Aborts the query-scoped loads only — `byKey` deliberately survives. */
+    const abortInFlightLoads = (): void => {
+        for (const controller of inFlightLoads) {
             controller.abort();
         }
     };
@@ -210,7 +271,7 @@ export function dxRemoteStore<TItem, TKey = unknown>(
         // silently. Deliberately NOT `dataSource.cancelAll()`: that method
         // resets the internal operation-id counter, and the id reuse makes
         // grid adapters discard the results of every subsequent load.
-        abortInFlight();
+        abortInFlightLoads();
         return Promise.resolve(dataSource.reload()).then(
             () => undefined,
             () => undefined,
@@ -253,7 +314,10 @@ export function dxRemoteStore<TItem, TKey = unknown>(
         if (debounceTimer !== undefined) {
             clearTimeout(debounceTimer);
         }
-        abortInFlight();
+        abortInFlightLoads();
+        for (const controller of inFlightByKey) {
+            controller.abort();
+        }
         dataSource.dispose();
     });
 
@@ -302,7 +366,13 @@ export function dxLoadOptionsParams(loadOptions: LoadOptions): URLSearchParams {
             params.set(key, String(value));
         }
     }
-    for (const key of ['filter', 'select', 'totalSummary', 'groupSummary'] as const) {
+    // `parentIds` carries the keys of the rows being expanded — the only
+    // loadOptions member a TreeList adds, and the one the protocol's reference
+    // .NET server does not parse (verified against 5.1.0: it declares no
+    // `ParentIds`). A remote hierarchy is therefore a contract between the
+    // widget and *your* endpoint; the client's job is simply not to drop what
+    // the widget produced, which is what this line guarantees.
+    for (const key of ['filter', 'select', 'totalSummary', 'groupSummary', 'parentIds'] as const) {
         const value = loadOptions[key];
         if (value !== undefined && value !== null) {
             params.set(key, JSON.stringify(value));

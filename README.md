@@ -4,6 +4,10 @@
 [![Context7](https://img.shields.io/badge/Context7-Indexed-3B82F6)](https://context7.com/caffeinatedcoder/ngx-devextreme-zoneless)
 [![NPM](https://img.shields.io/npm/v/ngx-devextreme-zoneless?label=NPM&color=3B82F6)](https://www.npmjs.com/package/ngx-devextreme-zoneless)
 
+> **Independent community project.** DevExtreme is a registered trademark of
+> Developer Express Inc. This library is not affiliated with, endorsed by, or
+> sponsored by Developer Express Inc.
+
 Strongly-typed **signal & zoneless change-detection adapters** for
 [DevExtreme Angular](https://js.devexpress.com/Angular/) components.
 
@@ -118,7 +122,7 @@ Where DevExtreme declares `value?: any` (SelectBox & friends) the directive is
 | `dx-gantt[dxSelectedRowKey]` | `TKey \| null` |
 | `dx-scheduler[dxCurrentDate]` | `Date \| number \| string` |
 | `dx-scheduler[dxCurrentView]` | DevExtreme's view union |
-| `dx-form[dxFormData]` | generic `TFormData` — emits a fresh shallow copy per field edit |
+| `dx-form[dxFormData]` | generic `TFormData` — emits a fresh value per field edit; the widget never shares the signal's object |
 
 ### Grid state (dx-data-grid and dx-tree-list)
 
@@ -128,11 +132,20 @@ Where DevExtreme declares `value?: any` (SelectBox & friends) the directive is
 | `[dxFilterValue]` | `DxFilterExpression \| null` |
 | `[dxPageIndex]`, `[dxPageSize]` | `number` (method-based — paging lives under the nested `paging` option) |
 | `[dxGridState]` | `DxGridState \| null \| undefined` — the full layout state (`state()` / `stateStoring`) |
+| `[dxSearchPanelText]` | `string` — the search panel's phrase (method-based: `searchByText`) |
+
+`[(dxSearchPanelText)]` puts the grid's built-in search box on a signal, so
+the widget's own search can drive query state that lives outside it — pair it
+with `dxRemoteStore({ deps: [search] })` and the search panel becomes a
+server-side search without an external input. Widget → signal reads are
+debounced via `dxSearchPanelTextDebounce` (default 0), independently of the
+widget's own `searchPanel` timeout.
 
 `[(dxGridState)]` is the layout-persistence story: bind it to a signal you
-persist wherever you like. `undefined` pulls the current state on attach,
-a saved state object restores the layout, `null` resets to defaults. Widget →
-signal reads are debounced (`dxGridStateDebounce`, default 100 ms).
+persist wherever you like. `undefined` pulls the current state once the grid
+has rendered (a grid has no layout state before that), a saved state object
+restores the layout, `null` resets to defaults. Widget → signal reads are
+debounced (`dxGridStateDebounce`, default 100 ms).
 
 ### Navigation & overlays
 
