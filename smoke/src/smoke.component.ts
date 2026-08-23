@@ -280,6 +280,9 @@ interface Order {
             <button data-testid="chart-set" (click)="points.set([{ argument: 'Feb', value: 15, seriesName: undefined }])">
                 select Feb
             </button>
+            <button data-testid="chart-set-bogus" (click)="selectFebAndBogus()">
+                select Feb + a point that does not exist
+            </button>
         </p>
 
         <h3>Composition API</h3>
@@ -507,6 +510,18 @@ export class SmokeComponent {
         if (saved !== undefined) {
             this.gridState.set(saved);
         }
+    }
+
+    /**
+     * Same partial-rejection shape as the TreeView bogus-key button: the
+     * chart's `write` silently skips a descriptor matching no point, so the
+     * signal can hold a selection the chart never made.
+     */
+    selectFebAndBogus(): void {
+        this.points.set([
+            { argument: 'Feb', value: 15, seriesName: undefined },
+            { argument: 'Nope', value: 99, seriesName: undefined },
+        ]);
     }
 
     setPerson(): void {

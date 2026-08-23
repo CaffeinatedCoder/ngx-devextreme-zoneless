@@ -340,6 +340,25 @@ test.describe('chart [(dxSelectedPoints)]', () => {
         await readout(page, 'chart-set').click();
         await expect(readout(page, 'chart-readout')).toContainText('Feb');
     });
+
+    // A descriptor matching no point is silently skipped by the chart's write,
+    // and the selection events fired during that write are dropped by the
+    // engine's re-entrancy latch — so without `reReadAfterWrite` the signal
+    // keeps a selection the chart never made, and structural equality then
+    // suppresses the read that would reconcile them. Same partial-rejection
+    // class as TreeView's `selectItem`.
+    //
+    // Note what convergence costs: the surviving descriptor comes back from
+    // the adapter's `read`, so it carries the `seriesName` the write omitted.
+    test('a descriptor matching no point converges away', async ({ page }) => {
+        await readout(page, 'chart-set-bogus').click();
+
+        await expect
+            .poll(async () =>
+                JSON.parse((await readout(page, 'chart-readout').textContent()) ?? '[]'),
+            )
+            .toEqual([{ seriesName: 'Series 1', argument: 'Feb', value: 15 }]);
+    });
 });
 
 test.describe('composition API', () => {

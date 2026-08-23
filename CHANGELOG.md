@@ -77,6 +77,19 @@
 
 ### Fixed
 
+- **`[(dxSelectedPoints)]` kept selections the chart never made.** A descriptor
+  matching no point is silently skipped by the adapter's write, and the
+  selection events the chart fires during that write are dropped by the
+  engine's re-entrancy latch — so the signal held the rejected descriptor and
+  structural equality suppressed the read that would have reconciled it. The
+  same partial-rejection class as the TreeView fix below, and it takes the same
+  remedy: the chart adapter now opts into `reReadAfterWrite`.
+
+  One visible consequence: the signal converges to what the adapter *reads
+  back*, so a descriptor written without a `seriesName` returns carrying the
+  series' actual name. Code comparing selection descriptors by exact object
+  shape should compare by `argument`/`value` instead.
+
 - **`[(dxSelectedNodeKeys)]` kept keys the widget rejected.** TreeView's
   `selectItem(key)` silently no-ops for a key the widget does not know, and
   the selection events it fires during our own write are dropped by the

@@ -63,6 +63,13 @@ function chartSelectionAdapter<TInstance extends DxWidget & ChartLike>(): DxBind
         // parameter here. The name is pinned as a positive control in
         // `examples/type-tests.ts`, so a DevExtreme rename still fails CI.
         events: ['pointSelectionChanged'] as unknown as readonly DxAdapterEventName<TInstance>[],
+        // A descriptor matching no point is silently skipped by `write` below,
+        // and the selection events the chart fires during our own write are
+        // dropped by the engine's re-entrancy latch — so without this the
+        // signal keeps selections the chart never made, and structural
+        // equality then suppresses the read that would reconcile them. Same
+        // partial-rejection class as TreeView's `selectItem`.
+        reReadAfterWrite: true,
         read: (instance) =>
             instance.getAllSeries().flatMap((series) =>
                 series
