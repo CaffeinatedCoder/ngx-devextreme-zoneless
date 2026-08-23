@@ -105,6 +105,11 @@ export interface DxRemoteStore<TItem, TKey = unknown> {
      * operation + transport `AbortSignal`), keeps the current page, and
      * resolves when the reload settles. Failures land in `error`, so the
      * returned promise never rejects.
+     *
+     * One exception to "keeps the current page": if a dependency change is
+     * still sitting in the `debounce` window, this call adopts it — taking the
+     * page-0 reset that change implies and dropping its pending timer, so the
+     * two collapse into a single load instead of racing.
      */
     reload(): Promise<void>;
 }
@@ -138,7 +143,9 @@ export interface DxRemoteStore<TItem, TKey = unknown> {
  * - `error` reflects the most recent settled load and is cleared by the next
  *   successful one; `reload()` is the retry;
  * - dependency changes reset to page 0 (a new query is a new result set);
- *   manual `reload()` keeps the page (same query, fresh data);
+ *   manual `reload()` keeps the page (same query, fresh data) — unless a
+ *   dependency change is still pending in the debounce window, which it adopts
+ *   rather than races;
  * - widget search options are folded into `LoadOptions.filter` before `load`
  *   runs (`useDefaultSearch`, matching the vendor's own remote client), so
  *   the load function only ever deals in filter expressions.
@@ -282,6 +289,9 @@ export function dxRemoteStore<TItem, TKey = unknown>(
         }
     };
 
+    /** Drops a debounced dependency run still waiting; `true` if there was one. */
+    let cancelPendingDepsRun: (() => boolean) | undefined;
+
     const reload = (): Promise<void> => {
         // Abort in-flight transport before starting over — the aborted loads
         // reject as `'canceled'` (see trackedLoad), which DevExtreme drops
@@ -289,6 +299,18 @@ export function dxRemoteStore<TItem, TKey = unknown>(
         // resets the internal operation-id counter, and the id reuse makes
         // grid adapters discard the results of every subsequent load.
         abortInFlightLoads();
+        // A dependency change still inside the debounce window describes the
+        // very refetch this call is asking for, so adopt it rather than race
+        // it: take the page-0 reset it implies and drop its timer. Racing was
+        // measured at four round trips against two on the same path, and moved
+        // the page out from under the user a few hundred milliseconds after
+        // they had already asked for fresh data. Two is the floor, not one:
+        // resetting the page and refetching are separate `DataSource`
+        // operations, so a widget sitting off page 0 issues its current-page
+        // load before the page-0 one.
+        if (cancelPendingDepsRun?.() === true) {
+            dataSource.pageIndex(0);
+        }
         return Promise.resolve(dataSource.reload()).then(
             () => undefined,
             () => undefined,
@@ -301,7 +323,7 @@ export function dxRemoteStore<TItem, TKey = unknown>(
         // set: reset to the first page (mirroring `DataSource.filter()`
         // semantics) and reload. The helper owns the debounce timer,
         // including clearing it on injector destruction.
-        watchDxSignals(
+        cancelPendingDepsRun = watchDxSignals(
             deps,
             () => {
                 dataSource.pageIndex(0);

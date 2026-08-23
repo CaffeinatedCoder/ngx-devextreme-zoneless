@@ -119,6 +119,44 @@ test.describe('external filter signals', () => {
             .toEqual([['customer', 'contains', 'acme'], 'and', ['status', '=', 'Pending']]);
     });
 
+    // A manual reload landing inside the debounce window used to *race* the
+    // pending dependency run: the reload fetched, then the debounced run fired
+    // anyway with its own page-0 reset, and the grid corrected itself in
+    // between — four round trips, measured, where the dependency change alone
+    // costs one, and the page moved a few hundred milliseconds after the user
+    // had already asked for fresh data. `reload()` now adopts the pending
+    // change instead: it takes the page-0 reset and drops the timer.
+    //
+    // Two requests is the floor here, not one, and the pair is worth naming:
+    // resetting the page and refetching are separate `DataSource` operations,
+    // so a grid sitting on page 1 issues its current-page load (`skip: 10`)
+    // before the page-0 load that carries `requireTotalCount`. Collapsing
+    // those would mean reaching into the widget's own paging controller, which
+    // this store deliberately does not do — it owns a DataSource, not a grid.
+    test('a reload inside the debounce window adopts the pending change', async ({
+        page,
+        request,
+    }) => {
+        await page.locator('#grid-remote-orders .dx-pages .dx-page').nth(1).click();
+        await expect(readout(page, 'orders-page')).toHaveText('1');
+        await stubReset(request);
+
+        await readout(page, 'orders-search').fill('acme');
+        await readout(page, 'orders-reload').click();
+
+        await expect(ordersPagerInfo(page)).toHaveText('Page 1 of 1 (10 items)');
+        await expect(readout(page, 'orders-page')).toHaveText('0');
+        await expect
+            .poll(async () => (await stubStats(request)).byPath['/api/orders'])
+            .toBe(2);
+        // ... and the second of those is the page-0 read, not a repeat of the
+        // first — the adopted reset, rather than a duplicated dependency run.
+        const sent = (await stubStats(request)).history
+            .filter((entry) => entry.path === '/api/orders')
+            .map((entry) => entry['skip']);
+        expect(sent).toEqual([10, 0]);
+    });
+
     test('debounce collapses keystrokes into a single request', async ({ page, request }) => {
         await stubReset(request);
         await readout(page, 'orders-search').pressSequentially('glo', { delay: 50 });

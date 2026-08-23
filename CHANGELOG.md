@@ -77,6 +77,20 @@
 
 ### Fixed
 
+- **`dxRemoteStore.reload()` raced a pending dependency change instead of
+  adopting it.** A manual reload landing inside the `debounce` window fetched
+  at the current page, and the debounced dependency run then fired anyway with
+  its own page-0 reset — four round trips against two on the same path,
+  measured, with the page moving a few hundred milliseconds after the user had
+  already asked for fresh data. `reload()` now takes the pending change's
+  page-0 reset and drops its timer, so the two collapse into one refetch.
+
+  Two requests rather than one is the floor: resetting the page and refetching
+  are separate `DataSource` operations, so a widget sitting off page 0 issues
+  its current-page load before the page-0 one. Collapsing those would mean
+  reaching into the widget's paging controller, which this store deliberately
+  does not do — it owns a `DataSource`, not a grid.
+
 - **`[(dxSelectedPoints)]` kept selections the chart never made.** A descriptor
   matching no point is silently skipped by the adapter's write, and the
   selection events the chart fires during that write are dropped by the
