@@ -26,10 +26,9 @@
 - **`[(dxSearchPanelText)]`** for `dx-data-grid` and `dx-tree-list` — two-way
   binds the search panel's phrase to a signal. `searchPanel.text` is a nested
   option outside the typed option-name surface, so the adapter writes through
-  `searchByText()` and reads the nested option back, re-reading on
-  `contentReady` because a `[(dxGridState)]` restore carries the search text
-  through the state machinery rather than through a `searchPanel`
-  `optionChanged`. `undefined` (no search text) normalizes to `''`, so
+  `searchByText()` and reads the nested option back, and also listens to
+  `contentReady` as the family default for method-based grid adapters.
+  `undefined` (no search text) normalizes to `''`, so
   "cleared" has one representation on the model side. Widget → signal reads
   are debounced via `dxSearchPanelTextDebounce` (default 0). Pairing it with
   `dxRemoteStore({ deps: [search] })` makes the built-in search box a

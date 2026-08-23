@@ -201,12 +201,18 @@ a moved block leaves a pointer, never a copy.
   so every event name they use needs a positive control in `examples/type-tests.ts`
   (`contentReady`, `pointSelectionChanged`, `pointClick`, `optionChanged` are pinned there)
 - **A nested option is not in the typed option-name surface, so it needs a method-based adapter —
-  and almost always a `contentReady` re-read.** `paging.pageIndex`, `searchPanel.text` and the grid
-  `state()` all change beneath their option without emitting a matching `optionChanged`: external
-  `dataSource.pageIndex(0)` fires none (fixed 2.1.0), and a `[(dxGridState)]` restore applies the
-  search text through the state machinery rather than through `searchPanel` (3.0). `contentReady` is
-  the event the grid fires after rendering any such change; structural equality drops the reads that
-  turn out to be no-ops, so the extra listener is cheap
+  and almost always a `contentReady` re-read.** `paging.pageIndex` and the grid `state()` change
+  beneath their option without emitting a matching `optionChanged`: external
+  `dataSource.pageIndex(0)` fires none (fixed 2.1.0), and a grid's `state()` is `{}` until first
+  render (3.0). `contentReady` is the event the grid fires after rendering any such change;
+  structural equality drops the reads that turn out to be no-ops, so the extra listener is cheap.
+  **`searchPanel.text` is the measured exception**: it was believed to change silently on a
+  `[(dxGridState)]` restore, and it does not. The restore calls `this.option('searchPanel.text', …)`
+  outside its own `beginUpdate`/`endUpdate` block, and `_notifyOptionChanged` is gated on
+  `_initialized` rather than on the update lock, so the event fires with `name: 'searchPanel'` like
+  any other option write (verified against 26.1.3; no silent-setter path for this option exists in
+  `grid_core`). `[(dxSearchPanelText)]`'s `contentReady` listener is therefore redundant for every
+  known path — it is kept as the family default, not because a defect requires it
 - **A widget's `state()` is `{}` until it has rendered.** The binding attaches at `initialized`,
   which is before the first layout, so a naive read captures an empty snapshot and — worse — the
   pusher effect can write it *back*, wiping the layout it exists to restore. `[(dxGridState)]`

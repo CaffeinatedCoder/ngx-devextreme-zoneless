@@ -350,6 +350,37 @@ test.describe('loader contract', () => {
         await expect(readout(page, 'orders-error')).toHaveText('sync loader failure');
         await expect(readout(page, 'orders-loading')).toHaveText('idle');
     });
+
+    // The same defect on the key-lookup path, where DevExtreme offers no
+    // safety net at all: `invokeUserByKeyFunc` calls the user function bare,
+    // and `_renderValue` discards the deferred it would have rejected — so a
+    // `byKey` that is not declared `async` throws straight out through the
+    // editor's own render. Without the store funnelling that into a rejection
+    // it lands as an uncaught error at the Angular boundary.
+    test('a synchronously throwing byKey rejects instead of escaping as an uncaught error', async ({
+        page,
+    }) => {
+        // Angular's ErrorHandler intercepts anything that escapes into its
+        // call stack and routes it to console.error, so an escaping throw
+        // never reaches window.onerror — a `pageerror` probe stays silent
+        // whether the guard is there or not. The console is the only channel
+        // that can actually see this one.
+        const consoleErrors: string[] = [];
+        page.on('console', (message) => {
+            if (message.type() === 'error') {
+                consoleErrors.push(message.text());
+            }
+        });
+
+        await readout(page, 'lookup-break-bykey').click();
+        await readout(page, 'lookup-set-other').click();
+
+        // The value signal still round-trips; only the display text is lost,
+        // which is what a rejected lookup is supposed to look like.
+        await expect(readout(page, 'lookup-readout')).toHaveText('7');
+        await page.waitForTimeout(300);
+        expect(consoleErrors.filter((text) => text.includes('sync byKey failure'))).toEqual([]);
+    });
 });
 
 test.describe('wire protocol conformance', () => {
@@ -357,7 +388,8 @@ test.describe('wire protocol conformance', () => {
     // decimal and spell a decimal as a quoted JSON string, so a conformant
     // endpoint may answer `"120"` where DevExtreme's typings promise `120`.
     // Forwarded untouched the pager concatenates instead of adding — a
-    // 120-row result renders as "Page 1 of 120 (1200 items)".
+    // 120-row result renders as "Page 1 of 120 (1200 items)". `groupCount` is
+    // corrupted the same way but lands elsewhere; see the grouping section.
     test('a string-spelled totalCount is read as a number', async ({ page, request }) => {
         await stubConfig(request, { stringCounts: true });
         await page.reload();
@@ -370,6 +402,23 @@ test.describe('wire protocol conformance', () => {
 });
 
 test.describe('remote grouping and summaries', () => {
+    // `groupCount` never reaches the pager — that reads a different total.
+    // It reaches the data controller's row count, which is where the grid
+    // computes `totalItemsCount - totalCount + groupCount`.
+    const groupedTotalItemsCount = (page: Page): Promise<number> =>
+        page.evaluate(() => {
+            const element = document.querySelector('#grid-grouped') as HTMLElement;
+            const ng = (
+                window as unknown as {
+                    ng: {
+                        getComponent(e: HTMLElement): {
+                            instance: { getController(name: string): { totalItemsCount(): number } };
+                        };
+                    };
+                }
+            ).ng;
+            return ng.getComponent(element).instance.getController('data').totalItemsCount();
+        });
     const groupRequests = (stats: StubStats): readonly StubLoadEntry[] =>
         stats.history.filter((entry) => entry.path === '/api/grouped-orders' && entry['group'] !== undefined);
 
@@ -392,6 +441,34 @@ test.describe('remote grouping and summaries', () => {
 
     test('a total summary from the envelope renders in the grid footer', async ({ page }) => {
         await expect(page.locator('#grid-grouped .dx-datagrid-total-footer')).toContainText('Sum');
+    });
+
+    // `groupCount` is the other half of the decimal-as-string problem, and it
+    // feeds the pager exactly as `totalCount` does. Rather than hardcode a
+    // number, this pins the invariant the coercion exists for: how the server
+    // chooses to spell its decimals must make no difference to what renders.
+    test('a string-spelled groupCount is added to the row count, not concatenated', async ({
+        page,
+        request,
+    }) => {
+        // Precondition — without a group count on the wire the coercion has
+        // nothing to act on and this case would prove nothing.
+        const asked = (await stubStats(request)).last['/api/grouped-orders'];
+        expect(asked?.['requireGroupCount']).toBe(true);
+
+        const numeric = await groupedTotalItemsCount(page);
+        expect(Number.isInteger(numeric)).toBe(true);
+
+        await stubConfig(request, { stringCounts: true });
+        await page.reload();
+        await expect(page.locator('#grid-grouped .dx-group-row').first()).toBeVisible();
+
+        // Uncoerced, `470 + "3"` yields 4703 rather than 473 — a silently
+        // digit-shifted row count that every downstream consumer then treats
+        // as a number.
+        expect(await groupedTotalItemsCount(page)).toBe(numeric);
+
+        await stubConfig(request, { stringCounts: false });
     });
 
     // `summary` is deliberately NOT coerced the way the counts are: it is

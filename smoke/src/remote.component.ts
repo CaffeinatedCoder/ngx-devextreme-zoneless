@@ -139,12 +139,27 @@ function combineFilters(
         </p>
 
         <h3>Grouped + summarized grid (remote grouping half)</h3>
+        <!--
+            The object form is deliberate. \`[remoteOperations]="true"\` expands to
+            filtering/sorting/paging/grouping/summary but *not* groupPaging, and
+            \`requireGroupCount\` is only ever sent from the group-paging path — so
+            the bare boolean means the server is never asked for a group count
+            and \`groupCount\` never reaches the client at all.
+        -->
         <dx-data-grid
             id="grid-grouped"
             [dataSource]="groupedOrders.dataSource"
-            [remoteOperations]="true"
+            [remoteOperations]="{
+                filtering: true,
+                sorting: true,
+                paging: true,
+                grouping: true,
+                summary: true,
+                groupPaging: true
+            }"
             style="max-width:560px">
             <dxo-group-panel [visible]="false" />
+            <dxo-grouping [autoExpandAll]="false" />
             <dxo-paging [pageSize]="5" />
             <dxi-column dataField="status" [groupIndex]="0" />
             <dxi-column dataField="id" [width]="70" />
@@ -182,6 +197,8 @@ function combineFilters(
                 style="width: 260px" />
             <span class="readout" data-testid="lookup-readout">{{ lookupId() ?? 'null' }}</span>
             <button data-testid="lookup-set" (click)="lookupId.set(9)">set customer 9</button>
+            <button data-testid="lookup-set-other" (click)="lookupId.set(7)">set customer 7</button>
+            <button data-testid="lookup-break-bykey" (click)="breakByKey.set(true)">break byKey</button>
             <button data-testid="lookup-reload" (click)="customerLookup.reload()">reload lookup</button>
         </div>
     `,
@@ -262,21 +279,35 @@ export class RemoteComponent {
 
     // --- screen (c): lookup with byKey --------------------------------------
     readonly lookupId = signal<number | null>(null);
+    /**
+     * Probe switch for a `byKey` that throws *synchronously*. The throw has to
+     * live in the non-`async` arrow the store actually invokes — inside an
+     * `async` function it would only ever produce a rejected promise, which is
+     * a different code path.
+     */
+    readonly breakByKey = signal(false);
 
     readonly customerLookup = dxRemoteStore<Customer, number>({
         key: 'id',
         load: async (options, signal) =>
             fetchJson<LoadResult<Customer>>(`/api/customers?${dxLoadOptionsParams(options)}`, signal),
-        byKey: async (key, signal) => {
-            const params = dxLoadOptionsParams({ filter: ['id', '=', key], take: 1 });
-            const result = await fetchJson<{ data: Customer[] }>(`/api/customers?${params}`, signal);
-            const item = result.data[0];
-            if (item === undefined) {
-                throw new Error(`customer ${key} not found`);
+        byKey: (key, signal) => {
+            if (untracked(this.breakByKey)) {
+                throw new Error('sync byKey failure');
             }
-            return item;
+            return this.loadCustomerByKey(key, signal);
         },
     });
+
+    private async loadCustomerByKey(key: number, signal: AbortSignal): Promise<Customer> {
+        const params = dxLoadOptionsParams({ filter: ['id', '=', key], take: 1 });
+        const result = await fetchJson<{ data: Customer[] }>(`/api/customers?${params}`, signal);
+        const item = result.data[0];
+        if (item === undefined) {
+            throw new Error(`customer ${key} not found`);
+        }
+        return item;
+    }
 
     private async loadOrders(
         options: LoadOptions<Order>,

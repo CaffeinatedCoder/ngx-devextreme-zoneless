@@ -1,4 +1,4 @@
-import { Component, effect, signal, untracked, viewChild } from '@angular/core';
+import { Component, computed, effect, signal, untracked, viewChild } from '@angular/core';
 import { JsonPipe } from '@angular/common';
 import CustomStore from 'devextreme/data/custom_store';
 import DataSource from 'devextreme/data/data_source';
@@ -28,6 +28,15 @@ type Status = 'Pending' | 'Shipped' | 'Delivered';
 interface Person {
     firstName: string;
     lastName: string;
+    /** Edited through a nested `dataField`, which is what makes clone *depth* observable. */
+    address: { city: string; zip: string };
+    /**
+     * Carried through the binding but never edited. `dxStructuralClone` has to
+     * re-create a `Date` as a `Date` and an array as an array — a JSON-based
+     * clone would hand back a string here. `form-shape` asserts on that.
+     */
+    hiredOn: Date;
+    tags: readonly string[];
 }
 
 interface Order {
@@ -124,13 +133,13 @@ interface Order {
         <dx-form id="form-main" [(dxFormData)]="person" style="max-width:480px">
             <dxi-item dataField="firstName" [editorOptions]="{ valueChangeEvent: 'input' }" />
             <dxi-item dataField="lastName" [editorOptions]="{ valueChangeEvent: 'input' }" />
+            <dxi-item dataField="address.city" [editorOptions]="{ valueChangeEvent: 'input' }" />
         </dx-form>
         <p>
             <span class="readout" data-testid="form-readout">{{ person() | json }}</span>
             <span class="readout" data-testid="form-emits">emits: {{ personEmits() }}</span>
-            <button data-testid="form-set" (click)="person.set({ firstName: 'Set', lastName: 'FromSignal' })">
-                set signal
-            </button>
+            <span class="readout" data-testid="form-shape">{{ personShape() }}</span>
+            <button data-testid="form-set" (click)="setPerson()">set signal</button>
         </p>
 
         <h3>Grid search panel</h3>
@@ -146,6 +155,7 @@ interface Order {
         </dx-data-grid>
         <p>
             <span class="readout" data-testid="search-readout">{{ gridSearch() }}</span>
+            <span class="readout" data-testid="search-kind">{{ gridSearchKind() }}</span>
             <button data-testid="search-set" (click)="gridSearch.set('Globex')">search Globex</button>
             <button data-testid="search-clear" (click)="gridSearch.set('')">clear</button>
         </p>
@@ -155,9 +165,11 @@ interface Order {
             id="grid-state"
             [(dxGridState)]="gridState"
             [dxGridStateDebounce]="50"
+            [(dxSearchPanelText)]="stateSearch"
             [dataSource]="orders()"
             keyExpr="id"
             style="max-width:480px">
+            <dxo-search-panel [visible]="true" />
             <dxo-paging [pageSize]="2" />
             <dxi-column dataField="id" />
             <dxi-column dataField="customer" />
@@ -165,8 +177,15 @@ interface Order {
         <p>
             <span class="readout" data-testid="state-page">{{ gridState() === undefined ? 'undefined' : (gridState() | json) }}</span>
             <span class="readout" data-testid="state-emits">emits: {{ gridStateEmits() }}</span>
+            <span class="readout" data-testid="state-search-readout">{{ stateSearch() }}</span>
+            <span class="readout" data-testid="state-search-kind">{{ stateSearchKind() }}</span>
             <button data-testid="state-restore" (click)="restoreState()">restore page 2</button>
             <button data-testid="state-reset" (click)="gridState.set(null)">reset layout</button>
+            <button data-testid="state-save" (click)="saveState()">save layout</button>
+            <button data-testid="state-restore-saved" (click)="restoreSavedState()">
+                restore saved layout
+            </button>
+            <button data-testid="state-empty" (click)="gridState.set({})">push empty state</button>
         </p>
 
         <h3>TreeView selection</h3>
@@ -275,11 +294,39 @@ export class SmokeComponent {
     readonly pageIndex = signal(0);
     readonly focusedId = signal<number | null>(null);
     readonly popupVisible = signal(false);
-    readonly person = signal<Person>({ firstName: 'Ada', lastName: 'Lovelace' });
+    readonly person = signal<Person>({
+        firstName: 'Ada',
+        lastName: 'Lovelace',
+        address: { city: 'London', zip: 'NW1' },
+        hiredOn: new Date('1843-01-01T00:00:00.000Z'),
+        tags: ['founder'],
+    });
     readonly personEmits = signal(0);
+    /**
+     * The runtime shape of the two fields the form never edits. The binding
+     * writes a clone in and reads a clone back, so both have to survive the
+     * round trip as themselves.
+     */
+    readonly personShape = computed(() => {
+        const person = this.person();
+        const when = person.hiredOn instanceof Date ? 'Date' : typeof person.hiredOn;
+        const tags = Array.isArray(person.tags) ? 'array' : typeof person.tags;
+        return `${when}/${tags}`;
+    });
     readonly gridState = signal<Record<string, unknown> | null | undefined>(undefined);
     readonly gridStateEmits = signal(0);
     readonly gridSearch = signal('');
+    /**
+     * `[(dxSearchPanelText)]`'s model type is `string`, so an `undefined`
+     * arriving from the widget is invisible to both the type system and a
+     * plain `{{ }}` readout — Angular renders it exactly like `''`. Reporting
+     * the runtime type is what lets a test tell "cleared" from "absent".
+     */
+    readonly gridSearchKind = computed(() => typeof this.gridSearch());
+    /** The same grid that carries `[(dxGridState)]`, so a restore drives both. */
+    readonly stateSearch = signal('');
+    readonly stateSearchKind = computed(() => typeof this.stateSearch());
+    private readonly savedState = signal<Record<string, unknown> | undefined>(undefined);
     readonly points = signal<readonly DxChartSelectedPoint[]>([]);
     readonly treeKeys = signal<readonly number[]>([]);
 
@@ -361,6 +408,36 @@ export class SmokeComponent {
         if (current) {
             this.gridState.set({ ...current, pageIndex: 1 });
         }
+    }
+
+    saveState(): void {
+        const current = this.gridState();
+        if (current) {
+            // Persisting a layout means serializing it — localStorage, a
+            // profile endpoint, wherever. Round-tripping here keeps the smoke
+            // screen honest about that, and it is also what makes the restored
+            // object a distinct reference: handing the signal back the very
+            // object it already holds is an `Object.is` no-op that would never
+            // reach the widget.
+            this.savedState.set(JSON.parse(JSON.stringify(current)) as Record<string, unknown>);
+        }
+    }
+
+    restoreSavedState(): void {
+        const saved = this.savedState();
+        if (saved !== undefined) {
+            this.gridState.set(saved);
+        }
+    }
+
+    setPerson(): void {
+        this.person.set({
+            firstName: 'Set',
+            lastName: 'FromSignal',
+            address: { city: 'Cambridge', zip: 'CB1' },
+            hiredOn: new Date('1843-01-01T00:00:00.000Z'),
+            tags: ['founder'],
+        });
     }
 
     addOrder(): void {

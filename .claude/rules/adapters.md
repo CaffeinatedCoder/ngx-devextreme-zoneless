@@ -30,20 +30,27 @@ top-level option:
 
 ## A method-based adapter almost always needs `contentReady`
 
-State that is not an option changes without emitting a matching `optionChanged`. Three separate
+State that is not an option changes without emitting a matching `optionChanged`. Two separate
 defects came from exactly this:
 
 - external `dataSource.pageIndex(0)` changes paging beneath the `paging` option and fires no
   `optionChanged` (fixed 2.1.0);
 - a grid's `state()` is `{}` until the first render, so a read at `initialized` captures nothing
-  (fixed 3.0);
-- a `[(dxGridState)]` restore applies the search text through the state machinery rather than
-  through a `searchPanel` `optionChanged` (which is why `[(dxSearchPanelText)]` shipped with the
-  re-read already in place).
+  (fixed 3.0).
 
 `contentReady` is the event the widget fires after rendering any such change. Structural equality
 drops the reads that turn out to be no-ops, so the extra listener costs nothing. **Default to
 including it**, and be able to say why if you leave it out.
+
+**One claim here was wrong, and the correction is instructive.** `[(dxSearchPanelText)]` shipped
+with a `contentReady` listener justified by "a `[(dxGridState)]` restore applies the search text
+through the state machinery, not through a `searchPanel` `optionChanged`". Mutation testing killed
+that: stripping the listener broke nothing. The restore calls `this.option('searchPanel.text', …)`
+*outside* its `beginUpdate`/`endUpdate` block, and `_notifyOptionChanged` is gated on `_initialized`
+rather than on the update lock — so the event fires normally, and no silent-setter path for this
+option exists anywhere in `grid_core` (26.1.3). Keep the listener as the family default; do not
+repeat the reasoning. **A `contentReady` listener you cannot kill a mutation with is a default, not
+a fix — say which one it is.**
 
 ## The `accept` filter
 
@@ -82,7 +89,14 @@ class of adapter relies on the `contentReady` re-read instead.
 
 A widget that reports no value as `undefined` where the model type is a `string` should be
 normalized in `read` (`?? ''`), so "cleared" has a single spelling on the model side.
-`[(dxSearchPanelText)]` does this.
+`[(dxSearchPanelText)]` does this — defensively, it turns out: 26.1.3 defaults `searchPanel.text`
+to `''` and never reports it absent, so that particular `?? ''` is currently unreachable.
+
+Normalize anyway, and for the engine-level reason rather than the widget-level one: `applyFromWidget`
+writes whatever `read` returns directly into the signal — the "`undefined` means do not push" rule
+guards the *pusher*, not the reader. An adapter that can return `undefined` will therefore put
+`undefined` into a model declared `string`, and neither the type system nor a `{{ }}` readout will
+show it.
 
 ## What the engine already guarantees — do not re-implement
 

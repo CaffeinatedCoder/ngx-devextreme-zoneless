@@ -309,6 +309,8 @@ test.describe('widget re-creation (composition API on viewChild)', () => {
 test.describe('form [(dxFormData)]', () => {
     const firstName = (page: Page): Locator =>
         page.locator('#form-main .dx-field-item').first().locator('input.dx-texteditor-input');
+    const city = (page: Page): Locator =>
+        page.locator('#form-main .dx-field-item').nth(2).locator('input.dx-texteditor-input');
     const emits = async (page: Page): Promise<number> =>
         Number((await readout(page, 'form-emits').textContent())?.replace(/\D/g, ''));
 
@@ -340,6 +342,35 @@ test.describe('form [(dxFormData)]', () => {
         await expect(firstName(page)).toHaveValue('Set');
         await expect(readout(page, 'form-readout')).toContainText('FromSignal');
     });
+
+    // The same defect one level down. A *shallow* clone hands the widget the
+    // signal's own nested object, so an edit to `address.city` mutates both
+    // sides at once and the structural comparison sees no change — the binding
+    // goes silent for nested fields while flat ones keep working. This is what
+    // ties `dxStructuralClone`'s depth to `dxStructuralEquals`'s depth.
+    test('widget → signal: editing a nested field emits a new value', async ({ page }) => {
+        await expect(readout(page, 'form-readout')).toContainText('London');
+        const before = await emits(page);
+
+        await city(page).fill('');
+        await city(page).pressSequentially('Manchester');
+
+        await expect(readout(page, 'form-readout')).toContainText('Manchester');
+        expect(await emits(page)).toBeGreaterThan(before);
+    });
+
+    // The clone's *reach*: a `Date` must come back a `Date` and an array an
+    // array, both on the way in and on the way out. A JSON round-trip clone —
+    // the obvious "simplification" — turns the date into a string here.
+    test('an untouched Date and array survive the clone round trip', async ({ page }) => {
+        await expect(readout(page, 'form-shape')).toHaveText('Date/array');
+
+        await firstName(page).fill('');
+        await firstName(page).pressSequentially('Grace');
+        await expect(readout(page, 'form-readout')).toContainText('Grace');
+
+        await expect(readout(page, 'form-shape')).toHaveText('Date/array');
+    });
 });
 
 test.describe('data grid [(dxGridState)]', () => {
@@ -370,27 +401,86 @@ test.describe('data grid [(dxGridState)]', () => {
         ).toHaveProperty('columns');
     });
 
+    const widgetPageIndex = (page: Page): Promise<number> =>
+        page.evaluate(() => {
+            const element = document.querySelector('#grid-state') as HTMLElement;
+            const ng = (
+                window as unknown as {
+                    ng: { getComponent(e: HTMLElement): { instance: { pageIndex(): number } } };
+                }
+            ).ng;
+            return ng.getComponent(element).instance.pageIndex();
+        });
+
+    const stateSearchInput = (page: Page): Locator =>
+        page.locator('#grid-state .dx-datagrid-search-panel input');
+
     test('signal → widget: a saved layout is restored', async ({ page }) => {
         await expect(page.locator('#grid-state .dx-data-row').first()).toBeVisible();
         await expect(readout(page, 'state-page')).toContainText('columns');
 
         await readout(page, 'state-restore').click();
 
-        await expect
-            .poll(() =>
-                page.evaluate(() => {
-                    const element = document.querySelector('#grid-state') as HTMLElement;
-                    const ng = (
-                        window as unknown as {
-                            ng: {
-                                getComponent(e: HTMLElement): { instance: { pageIndex(): number } };
-                            };
-                        }
-                    ).ng;
-                    return ng.getComponent(element).instance.pageIndex();
-                }),
-            )
-            .toBe(1);
+        await expect.poll(() => widgetPageIndex(page)).toBe(1);
+    });
+
+    // `state()` reports `{}` until the grid has rendered, and writing that
+    // back wipes the layout the binding exists to restore. The pusher refuses
+    // it — so pushing `{}` deliberately must leave the widget where it was.
+    test('an empty state is refused instead of wiping the layout', async ({ page }) => {
+        await expect(page.locator('#grid-state .dx-data-row').first()).toBeVisible();
+        await readout(page, 'state-restore').click();
+        await expect.poll(() => widgetPageIndex(page)).toBe(1);
+
+        await readout(page, 'state-empty').click();
+
+        // Asserting that something did *not* happen needs a settle window
+        // wider than the binding's 50 ms read debounce.
+        await page.waitForTimeout(300);
+        expect(await widgetPageIndex(page)).toBe(1);
+        expect(await widgetState(page)).toHaveProperty('columns');
+    });
+
+    // The search phrase is part of the layout state, so restoring a layout has
+    // to carry it back into the search binding — the two bindings share this
+    // grid precisely so that path is covered. (The restore turns out to raise
+    // an ordinary `searchPanel` `optionChanged`, so the adapter's
+    // `contentReady` listener is not what makes this work; see adapters.md.)
+    test('a restored layout carries its search text back into the search signal', async ({
+        page,
+    }) => {
+        await expect(page.locator('#grid-state .dx-data-row').first()).toBeVisible();
+
+        await stateSearchInput(page).fill('Initech');
+        await expect(readout(page, 'state-search-readout')).toHaveText('Initech');
+        await expect(readout(page, 'state-page')).toContainText('Initech');
+        await readout(page, 'state-save').click();
+
+        await stateSearchInput(page).fill('');
+        await expect(readout(page, 'state-search-readout')).toHaveText('');
+        // The live layout must have followed the clear, or the "restore"
+        // below would be restoring the state the grid is already in.
+        await expect(readout(page, 'state-page')).not.toContainText('Initech');
+
+        await readout(page, 'state-restore-saved').click();
+
+        await expect(stateSearchInput(page)).toHaveValue('Initech');
+        await expect(readout(page, 'state-search-readout')).toHaveText('Initech');
+    });
+
+    // A `null` state resets the grid to its defaults, which clears the search
+    // panel from underneath the search binding — a third way for the phrase to
+    // change that the binding still has to follow, and the model must stay a
+    // plain `string` through it.
+    test('a layout reset leaves the search model a string, not undefined', async ({ page }) => {
+        await expect(page.locator('#grid-state .dx-data-row').first()).toBeVisible();
+        await stateSearchInput(page).fill('Initech');
+        await expect(readout(page, 'state-search-readout')).toHaveText('Initech');
+
+        await readout(page, 'state-reset').click();
+
+        await expect(readout(page, 'state-search-readout')).toHaveText('');
+        await expect(readout(page, 'state-search-kind')).toHaveText('string');
     });
 });
 
@@ -417,8 +507,12 @@ test.describe('data grid [(dxSearchPanelText)]', () => {
         await expect(rows(page)).toHaveCount(1);
     });
 
-    // The widget reports no search text as `undefined`; the adapter normalizes
-    // that to `''` so "cleared" has a single representation on the model side.
+    // "Cleared" must have one representation on the model side. The plain
+    // readout cannot police that on its own — Angular renders `undefined` and
+    // `''` identically — so `search-kind` reports the runtime type instead.
+    // (Against 26.1.3 the widget itself already answers `''`; the assertion
+    // pins the model-type contract, not the adapter's `?? ''` fallback, which
+    // no current vendor path reaches.)
     test('clearing round-trips as an empty string, not undefined', async ({ page }) => {
         await readout(page, 'search-set').click();
         await expect(rows(page)).toHaveCount(1);
@@ -427,6 +521,7 @@ test.describe('data grid [(dxSearchPanelText)]', () => {
 
         await expect(rows(page)).toHaveCount(3);
         await expect(readout(page, 'search-readout')).toHaveText('');
+        await expect(readout(page, 'search-kind')).toHaveText('string');
         await expect(searchInput(page)).toHaveValue('');
     });
 });

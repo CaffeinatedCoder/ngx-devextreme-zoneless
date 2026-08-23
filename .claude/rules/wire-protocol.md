@@ -35,6 +35,22 @@ documentation — which is silent or wrong on all four.
   `groupSummary` asked for one. `isExpanded` on the group descriptor decides which shape comes back
 - **TreeList asks for roots with `parentIds: [0]`** — `rootValue` defaults to `0`, not `null` — and
   sends both `parentIds` and an equivalent `filter` on the parent-id field
+- **A grid asks for `requireGroupCount` only under group paging, and `remoteOperations: true` does
+  not enable it.** The bare boolean expands to `filtering/sorting/paging/grouping/summary` — never
+  `groupPaging` — and `requireGroupCount` is set in exactly one reachable place, the group-paging
+  branch of the collapsed-grouping helper. A second gate sits behind it: `grouping.autoExpandAll`
+  defaults to `true`, which ships the group descriptor as `isExpanded: true`, and any expanded level
+  forces `remoteOperations.paging` back to `false` before that branch is reached. So a remote grouped
+  grid needs **both** the object form with `groupPaging: true` **and** `autoExpandAll: false` before
+  a group count ever reaches the wire. Measured: with them the first request carries
+  `skip: 0, take: 5, requireTotalCount: true, requireGroupCount: true`; without them it carries none
+  of the four. The grouped reference screen is configured this way deliberately — a `groupCount` that
+  never arrives cannot exercise the coercion that exists for it
+- **`groupCount` corrupts a different number than `totalCount` does.** Both are spelled as quoted
+  strings by conformant servers, but the pager reads `totalCount` while `groupCount` feeds
+  `totalItemsCount()`, computed as `totalItemsCount - totalCount + groupCount`. A string on the
+  right of that `+` concatenates rather than adds — a digit-shifted row count that every downstream
+  consumer then treats as a number, with no visible pager symptom to give it away
 - **`parentIds` is not part of the reference .NET implementation's parsed surface.** Verified against
   5.1.0 assembly metadata: it declares no `ParentIds` (while `RemoteGrouping`, `PrimaryKey`,
   `TotalSummary` and the rest are all present). A remote hierarchy is therefore a contract between

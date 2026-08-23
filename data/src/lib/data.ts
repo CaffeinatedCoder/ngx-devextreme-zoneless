@@ -383,14 +383,20 @@ interface GridSearchLike {
  * The search panel's phrase lives under the nested `searchPanel` option
  * (`searchPanel.text`), which option-name typing deliberately does not cover
  * — this adapter writes through the `searchByText()` method and reads the
- * nested option back, listening for the `searchPanel` option change. Like the
- * paging adapters it also re-reads on `contentReady`, because the search text
- * is part of the layout state: a `[(dxGridState)]` restore applies it through
- * the state machinery rather than through a `searchPanel` `optionChanged`.
+ * nested option back, listening for the `searchPanel` option change. It also
+ * re-reads on `contentReady`, as the family default for method-based grid
+ * adapters — not because a silent path is known. Both this listener and the
+ * `?? ''` below survive having themselves deleted: against 26.1.3 every
+ * mutator of `searchPanel.text`, the `[(dxGridState)]` restore included, goes
+ * through the public option setter and raises `optionChanged`, and the
+ * vendor's own default for the option is `''` rather than `undefined`, so the
+ * widget never hands back an absent value.
  *
- * A widget with no search text reports `undefined`; the binding normalizes
- * that to `''` so the model type stays a plain `string` and "cleared" has one
- * representation instead of two.
+ * The `?? ''` is kept regardless, because it is the only thing that makes the
+ * declared `string` model type true at runtime: `applyFromWidget` writes
+ * whatever `read` returns straight into the signal — the skip-`undefined`
+ * rule guards the pusher effect, not the reader — so an adapter returning
+ * `undefined` would quietly put `undefined` in a `string` model.
  */
 function searchPanelTextAdapter(): DxBindingAdapter<DxWidget & GridSearchLike, string> {
     return {
