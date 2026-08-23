@@ -65,6 +65,19 @@ is what happened to `[(dxFormData)]` for two releases. Write `dxStructuralClone(
 `dxStructuralClone(...)` back out. Its reach matches `dxStructuralEquals` exactly; if you extend one,
 extend the other, or clone depth and comparison depth disagree.
 
+## A write the widget may not accept verbatim needs `reReadAfterWrite`
+
+The engine's latch drops every event the widget fires during `adapter.write` — usually echoes, but
+also *corrections*. If the widget normalizes or partially rejects what it was handed (TreeView's
+`selectItem` silently no-ops on an unknown key), the signal keeps the rejected value and structural
+equality suppresses the read that would reconcile the sides. Setting `reReadAfterWrite: true` on the
+adapter makes the engine re-read immediately after each write and fold the widget's actual state
+back into the signal.
+
+Do **not** enable it where the post-write read is transiently incomplete — a grid's `state()` is
+`{}` until first render, and the convergence read would wipe the very state the write carried. That
+class of adapter relies on the `contentReady` re-read instead.
+
 ## Normalize "absent" to one representation
 
 A widget that reports no value as `undefined` where the model type is a `string` should be

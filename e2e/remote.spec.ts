@@ -158,6 +158,46 @@ test.describe('slow endpoint', () => {
         await expect(readout(page, 'orders-error')).toHaveText('');
         await expect(page.locator('#grid-remote-orders .dx-error-row')).toHaveCount(0);
     });
+
+    // The supersede contract must hold even for a loader that never forwards
+    // its AbortSignal to the transport. What protects it then is vendor
+    // internals, measured against 26.1.3: the DataSource load queue is FIFO
+    // per instance, the grid cancels the superseded operation id on every new
+    // load, and _loadFromStore drops any result whose deferred has settled.
+    // Those are untyped internals — a version-sensitive spot this suite
+    // exists to pin. If this goes red after a DevExtreme bump, a stale
+    // response is overwriting the newest query.
+    test('a stale resolve from an abort-ignoring loader never overwrites the newest query', async ({
+        page,
+        request,
+    }) => {
+        await stubReset(request);
+        await page.getByTestId('orders-ignore-abort').click();
+        const ordersCount = async (): Promise<number> =>
+            (await stubStats(request)).byPath['/api/orders'] ?? 0;
+
+        // Slow load A (status=Pending) sleeps at the stub for 1000ms.
+        await stubConfig(request, { delayMs: 1000 });
+        await readout(page, 'orders-status').selectOption('Pending');
+        await expect.poll(ordersCount).toBe(1);
+
+        // Fast load B (status=Shipped) supersedes A and settles immediately —
+        // so A's un-aborted response arrives last.
+        await stubConfig(request, { delayMs: 0 });
+        await readout(page, 'orders-status').selectOption('Shipped');
+        await expect.poll(ordersCount).toBe(2);
+
+        // The ignoring loader keeps isLoading true until A settles; 'idle'
+        // therefore means the stale response has fully arrived.
+        await expect(readout(page, 'orders-loading')).toHaveText('idle', { timeout: 8000 });
+        await page.waitForTimeout(300);
+
+        for (const status of await page
+            .locator('#grid-remote-orders .dx-data-row td:nth-child(3)')
+            .allInnerTexts()) {
+            expect(status).toBe('Shipped');
+        }
+    });
 });
 
 test.describe('failing endpoint', () => {

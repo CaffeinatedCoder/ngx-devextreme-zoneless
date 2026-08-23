@@ -45,6 +45,19 @@ export interface DxBindingAdapter<TInstance extends DxWidget, TValue> {
     write(instance: TInstance, value: TValue): void;
     /** Optional filter deciding whether a received event affects this binding. */
     accept?(eventName: DxAdapterEventName<TInstance>, eventArgs: unknown): boolean;
+    /**
+     * Re-read the widget immediately after every write and fold the result
+     * back into the signal. For widgets that normalize or partially reject a
+     * written value *synchronously* — e.g. selection APIs that silently skip
+     * unknown keys — the re-entrancy latch drops the events they fire during
+     * the write, so without this re-read the signal keeps a value the widget
+     * rejected and structural equality suppresses the read that would fix it.
+     *
+     * Leave unset where a post-write read can be transiently incomplete: a
+     * grid's `state()` is `{}` until the first render, so re-reading right
+     * after a restore would wipe the very state the write carried.
+     */
+    readonly reReadAfterWrite?: boolean;
 }
 
 /** Which side wins the initial synchronization when the binding attaches. */
@@ -126,6 +139,26 @@ export function bindDxState<THost extends DxHostComponent, TValue>(
     onDxWidgetReady(
         hostRef,
         (instance) => {
+            const applyFromWidget = (): void => {
+                const value = adapter.read(instance);
+                if (!equal(untracked(source), value)) {
+                    guarded(() => source.set(value));
+                }
+            };
+            /**
+             * Writes into the widget and — when the adapter opted in — folds
+             * the widget's *synchronous* reaction back into the signal. The
+             * latch drops the events fired during the write, so a widget that
+             * normalized or partially rejected the value would otherwise
+             * diverge from the signal silently.
+             */
+            const writeToWidget = (value: TValue): void => {
+                guarded(() => adapter.write(instance, value));
+                if (adapter.reReadAfterWrite === true) {
+                    applyFromWidget();
+                }
+            };
+
             // --- initial synchronization -------------------------------------
             const initial = untracked(source);
             const pushInitial =
@@ -133,7 +166,7 @@ export function bindDxState<THost extends DxHostComponent, TValue>(
                 (initialSync === 'auto' && initial !== undefined);
             if (pushInitial) {
                 if (initial !== undefined && !equal(adapter.read(instance), initial)) {
-                    guarded(() => adapter.write(instance, initial));
+                    writeToWidget(initial);
                 }
             } else {
                 const widgetValue = adapter.read(instance);
@@ -143,12 +176,6 @@ export function bindDxState<THost extends DxHostComponent, TValue>(
             }
 
             // --- widget → signal ----------------------------------------------
-            const applyFromWidget = (): void => {
-                const value = adapter.read(instance);
-                if (!equal(untracked(source), value)) {
-                    guarded(() => source.set(value));
-                }
-            };
             const detachers: (() => void)[] = [];
             for (const eventName of adapter.events) {
                 const handler = (eventArgs: unknown): void => {
@@ -181,7 +208,7 @@ export function bindDxState<THost extends DxHostComponent, TValue>(
                     }
                     untracked(() => {
                         if (!equal(adapter.read(instance), value)) {
-                            guarded(() => adapter.write(instance, value));
+                            writeToWidget(value);
                         }
                     });
                 },

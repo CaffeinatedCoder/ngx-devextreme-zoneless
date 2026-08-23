@@ -157,6 +157,40 @@ test.describe('data grid [(dxPageIndex)] and [(dxFocusedRowKey)]', () => {
     });
 });
 
+test.describe('tree view [(dxSelectedNodeKeys)]', () => {
+    const item = (page: Page, text: string): Locator =>
+        page.locator('#tree-select .dx-treeview-item', { hasText: text });
+    const selectedNodes = (page: Page): Locator =>
+        page.locator('#tree-select .dx-treeview-node.dx-state-selected');
+
+    test('widget → signal: clicking an item updates the readout', async ({ page }) => {
+        await item(page, 'Apple').click();
+        await expect(readout(page, 'tree-readout')).toHaveText(/\[\s*2\s*\]/);
+    });
+
+    test('signal → widget: setting the signal selects the node', async ({ page }) => {
+        await readout(page, 'tree-set').click();
+        await expect(selectedNodes(page)).toHaveCount(1);
+        await expect(selectedNodes(page)).toContainText('Banana');
+        await expect(readout(page, 'tree-readout')).toHaveText(/\[\s*3\s*\]/);
+    });
+
+    // The re-entrancy latch drops every event the widget fires synchronously
+    // during our own write — correct for echoes, but `selectItem(key)` also
+    // silently no-ops for a key the widget does not know. Without the
+    // adapter's post-write re-read the signal would keep the rejected key
+    // forever, because structural equality then suppresses the very read that
+    // would reconcile the two sides.
+    test('a partially rejected write converges the signal to what the widget accepted', async ({
+        page,
+    }) => {
+        await readout(page, 'tree-set-bogus').click();
+        await expect(selectedNodes(page)).toHaveCount(1);
+        await expect(selectedNodes(page)).toContainText('Banana');
+        await expect(readout(page, 'tree-readout')).toHaveText(/\[\s*3\s*\]/);
+    });
+});
+
 test.describe('popup [(dxVisible)]', () => {
     const open = async (page: Page): Promise<void> => {
         await readout(page, 'popup-open').click();

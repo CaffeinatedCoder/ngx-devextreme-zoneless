@@ -86,6 +86,14 @@ const misspelledAdapter: DxBindingAdapter<FormInstance, object> = {
     write: () => void 0,
 };
 
+/* Adapters may opt into the post-write convergence re-read (3.0). */
+const convergingAdapter: DxBindingAdapter<FormInstance, object> = {
+    events: ['optionChanged'],
+    reReadAfterWrite: true,
+    read: () => ({}),
+    write: () => void 0,
+};
+
 /* Positive controls pinning the event names used by generic internal
  * adapters (which cannot be checked at their declaration site): a DevExtreme
  * rename of these names must fail this file. */

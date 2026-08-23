@@ -190,6 +190,12 @@ a moved block leaves a pointer, never a copy.
 - **`undefined` means "do not push".** The pusher effect skips it deliberately, so a signal cannot
   clear a widget option by going `undefined` — use `null` where the widget accepts one. Do not
   "fix" this
+- **The re-entrancy latch drops the widget's synchronous reaction to our own write — including
+  corrections.** A widget that partially rejects a write (TreeView's `selectItem` silently no-ops on
+  an unknown key) would diverge from the signal forever, because structural equality then suppresses
+  the reconciling read. An adapter whose write can be normalized or partially rejected opts into
+  `reReadAfterWrite`; one whose post-write read is transiently incomplete (`state()` is `{}`
+  pre-render) must not
 - **Adapter event names are type-checked against the widget's `Properties`** — a typo or a vendor
   rename is a compile error. Generic internal adapters cannot be checked at their declaration site,
   so every event name they use needs a positive control in `examples/type-tests.ts`
@@ -224,6 +230,11 @@ a moved block leaves a pointer, never a copy.
 - **`DataSource.reload()` keeps `pageIndex`; `DataSource.filter()` resets it.** Dependency changes
   therefore reset to page 0 (a new query is a new result set) while a manual `reload()` keeps the
   page — that asymmetry is vendor semantics, not a choice
+- **Stale resolves are vendor-guarded — add no client-side guard.** A superseded load that resolves
+  anyway (a loader ignoring its `AbortSignal`) cannot overwrite the newest query: the `DataSource`
+  load queue is FIFO per instance, grids cancel the superseded operation id on every new load, and a
+  settled deferred drops late results (measured against 26.1.3). Pinned by the abort-ignoring-loader
+  e2e in `remote.spec.ts`; that spec going red after a vendor bump means this guarantee moved
 
 **loadOptions wire protocol**
 

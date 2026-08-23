@@ -11,6 +11,7 @@ import { DxSelectBoxComponent, DxSelectBoxModule } from 'devextreme-angular/ui/s
 import { DxSliderModule } from 'devextreme-angular/ui/slider';
 import { DxTabsModule } from 'devextreme-angular/ui/tabs';
 import { DxTextBoxComponent, DxTextBoxModule } from 'devextreme-angular/ui/text-box';
+import { DxTreeViewModule } from 'devextreme-angular/ui/tree-view';
 import {
     bindDxOption,
     DX_SIGNAL_DIRECTIVES,
@@ -47,6 +48,7 @@ interface Order {
         DxSliderModule,
         DxTabsModule,
         DxTextBoxModule,
+        DxTreeViewModule,
         DX_SIGNAL_DIRECTIVES,
     ],
     template: `
@@ -167,6 +169,24 @@ interface Order {
             <button data-testid="state-reset" (click)="gridState.set(null)">reset layout</button>
         </p>
 
+        <h3>TreeView selection</h3>
+        <div class="row">
+            <dx-tree-view
+                id="tree-select"
+                [items]="treeItems"
+                keyExpr="id"
+                selectionMode="multiple"
+                showCheckBoxesMode="normal"
+                [selectByClick]="true"
+                [(dxSelectedNodeKeys)]="treeKeys"
+                style="max-width:240px" />
+            <span class="readout" data-testid="tree-readout">{{ treeKeys() | json }}</span>
+            <button data-testid="tree-set" (click)="treeKeys.set([3])">select banana</button>
+            <button data-testid="tree-set-bogus" (click)="treeKeys.set([3, 999])">
+                select banana + bogus key
+            </button>
+        </div>
+
         <h3>Popup</h3>
         <div class="row">
             <button data-testid="popup-open" (click)="popupVisible.set(true)">open popup</button>
@@ -261,6 +281,20 @@ export class SmokeComponent {
     readonly gridStateEmits = signal(0);
     readonly gridSearch = signal('');
     readonly points = signal<readonly DxChartSelectedPoint[]>([]);
+    readonly treeKeys = signal<readonly number[]>([]);
+
+    readonly treeItems = [
+        {
+            id: 1,
+            text: 'Fruit',
+            expanded: true,
+            items: [
+                { id: 2, text: 'Apple' },
+                { id: 3, text: 'Banana' },
+            ],
+        },
+        { id: 4, text: 'Vegetables' },
+    ];
 
     readonly statuses: Status[] = ['Pending', 'Shipped', 'Delivered'];
     readonly tabs = ['One', 'Two', 'Three'];

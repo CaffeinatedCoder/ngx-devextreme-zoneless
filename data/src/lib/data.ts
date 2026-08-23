@@ -148,6 +148,11 @@ export class DxTreeViewSelectedNodeKeysDirective<
         type TInstance = DxInstanceOf<DxTreeViewComponent<TItem, TKey>>;
         const adapter: DxBindingAdapter<TInstance, readonly TKey[]> = {
             events: ['selectionChanged'],
+            // `selectItem(key)` silently no-ops for a key the widget does not
+            // know; without the post-write re-read the signal keeps keys the
+            // widget rejected, and structural equality suppresses the read
+            // that would reconcile them.
+            reReadAfterWrite: true,
             read: (instance) => instance.getSelectedNodeKeys(),
             write: (instance, keys) => {
                 instance.beginUpdate();

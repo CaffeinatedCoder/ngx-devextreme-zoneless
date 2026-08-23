@@ -42,7 +42,7 @@ interface Customer {
 }
 
 /** Minimal fetch wrapper a real consumer would own (auth headers etc. go here). */
-async function fetchJson<T>(url: string, signal: AbortSignal): Promise<T> {
+async function fetchJson<T>(url: string, signal: AbortSignal | undefined): Promise<T> {
     const response = await fetch(url, { signal });
     if (!response.ok) {
         const body: { message?: string } | undefined = await response.json().catch(() => undefined);
@@ -84,6 +84,7 @@ function combineFilters(
             <span class="readout" data-testid="orders-error">{{ ordersError() }}</span>
             <button data-testid="orders-reload" (click)="orders.reload()">reload</button>
             <button data-testid="orders-break" (click)="breakLoader.set(true)">break loader</button>
+            <button data-testid="orders-ignore-abort" (click)="ignoreAbort.set(true)">ignore abort</button>
             <span class="readout" data-testid="orders-page">{{ ordersPage() }}</span>
         </div>
         @if (showOrdersGrid()) {
@@ -195,6 +196,8 @@ export class RemoteComponent {
     readonly ordersPage = signal(0);
     readonly showOrdersGrid = signal(true);
     readonly breakLoader = signal(false);
+    /** Probe switch: a loader that never forwards its AbortSignal to fetch. */
+    readonly ignoreAbort = signal(false);
 
     readonly orders = dxRemoteStore<Order, number>({
         key: 'id',
@@ -287,6 +290,9 @@ export class RemoteComponent {
             statusValue === null ? undefined : ['status', '=', statusValue],
         );
         const params = dxLoadOptionsParams({ ...options, filter });
-        return fetchJson<LoadResult<Order>>(`/api/orders?${params}`, signal);
+        return fetchJson<LoadResult<Order>>(
+            `/api/orders?${params}`,
+            untracked(this.ignoreAbort) ? undefined : signal,
+        );
     }
 }
