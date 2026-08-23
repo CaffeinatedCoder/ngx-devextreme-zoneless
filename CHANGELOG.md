@@ -35,7 +35,36 @@
   `dxRemoteStore({ deps: [search] })` makes the built-in search box a
   server-side search with no external input.
 
+- **`DxBindingAdapter.reReadAfterWrite`** — an adapter may now opt into a
+  post-write convergence read: the engine re-reads the widget immediately
+  after every write and folds the result back into the signal. This is for
+  widgets that normalize or partially reject a written value *synchronously*:
+  the engine's re-entrancy latch deliberately drops the events they fire
+  during our own write (they are usually echoes), so without the re-read the
+  signal would keep a value the widget refused — and structural equality would
+  then suppress the very read that could reconcile the two sides. Off by
+  default; adapters whose post-write read can be transiently incomplete (a
+  grid's `state()` is `{}` until first render) must not enable it.
+- **Grid directive bases are exported from `/data`** —
+  `DxFocusedRowKeyDirectiveBase`, `DxFilterValueDirectiveBase`,
+  `DxPageIndexDirectiveBase`, `DxPageSizeDirectiveBase`,
+  `DxSearchPanelTextDirectiveBase` and `DxGridStateDirectiveBase`, the same
+  extension idiom the core family bases already offer. Each grid capability is
+  now written once and shared by the `dx-data-grid`/`dx-tree-list` directive
+  pairs, which also keeps defaults (such as `dxGridStateDebounce`'s 100 ms) in
+  a single place.
+
 ### Fixed
+
+- **`[(dxSelectedNodeKeys)]` kept keys the widget rejected.** TreeView's
+  `selectItem(key)` silently no-ops for a key the widget does not know, and
+  the selection events it fires during our own write are dropped by the
+  engine's re-entrancy latch — so after writing `[3, 999]` with `999` unknown,
+  the widget held `[3]` while the signal kept `[3, 999]`, silently and
+  forever. The adapter now opts into `reReadAfterWrite` (see *Added*): the
+  signal converges to what the widget actually accepted. The TreeView binding
+  also gained the smoke screen and both-direction e2e coverage it had shipped
+  without.
 
 - **`[(dxFormData)]` stopped emitting on user edits.** `dxForm` edits the
   bound `formData` object **in place**, and the binding handed the widget the
@@ -90,6 +119,24 @@
   screen: DevExtreme's TreeList asks for roots with its `rootValue` sentinel
   `0` (not `null`) and sends both `parentIds` and an equivalent `filter`.
 
+### Verified
+
+- **A stale resolve can never overwrite the newest query.** A `dxRemoteStore`
+  loader that never forwards its `AbortSignal` to the transport resolves its
+  superseded load normally — and measurement shows the grid still keeps the
+  newest result. The mechanism is vendor-side, established against 26.1.3
+  sources: the `DataSource` load queue is strictly FIFO per instance, grid
+  adapters cancel the superseded operation id on every new load, and
+  `_loadFromStore` drops any result whose deferred has already settled. Those
+  are untyped internals, so the behaviour is now pinned by an e2e case driving
+  an abort-ignoring loader; no client-side guard was added, deliberately.
+- **`error` describes the newest load, stated precisely.** The signal carries
+  the rejection reason of the most recently *started* load once it settles;
+  a load superseded by a newer one never writes it, even when it settles
+  later (grouped grids issue parallel loads). The doc comment previously said
+  "most recent settled load", which is not what the implementation guarantees
+  — the implementation semantic is the intended one and is now documented.
+
 ### Changed
 
 - **Trademark attribution is now the first thing a reader meets.** The notice
@@ -108,9 +155,11 @@
   `[(dxGridState)]` now have reference sections in the smoke app and
   Playwright tests for both directions — each of the four fixes above is
   pinned by a test that fails without it. `[(dxSearchPanelText)]` ships with
-  its own three. Suite: 36 → 51 — the added coverage is the remote grouping
+  its own three. Suite: 36 → 55 — the added coverage is the remote grouping
   half (group descriptor with `isExpanded`, `groupSummary` and `totalSummary`
-  on the wire, envelope summaries rendering) and a remote-hierarchy TreeList.
+  on the wire, envelope summaries rendering), a remote-hierarchy TreeList,
+  the TreeView selection screen with the partial-rejection convergence case,
+  and the abort-ignoring-loader supersede pin.
 
 ## 2.1.0 (2026-08-21)
 

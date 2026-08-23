@@ -2,16 +2,15 @@ import {
     assertInInjectionContext,
     computed,
     DestroyRef,
-    effect,
     inject,
     Injector,
     signal,
-    untracked,
     type Signal,
 } from '@angular/core';
 import type { LoadOptions, LoadResult } from 'devextreme/common/data';
 import CustomStore from 'devextreme/data/custom_store';
 import DataSource from 'devextreme/data/data_source';
+import { watchDxSignals } from './watch';
 
 /**
  * Remote data with `resource()` vocabulary: {@link dxRemoteStore} wraps a
@@ -78,10 +77,12 @@ export interface DxRemoteStore<TItem, TKey = unknown> {
     /** `true` while at least one load is in flight — for UI outside the widget. */
     readonly isLoading: Signal<boolean>;
     /**
-     * The rejection reason of the most recent settled load, or `undefined`
-     * after a successful load. Superseded (aborted) loads never write here.
-     * The widget additionally shows its own load-error UI; this signal is for
-     * error/retry UI outside the widget.
+     * The rejection reason of the most recently *started* load once it
+     * settles, or `undefined` after it succeeds. A load that was superseded
+     * by a newer one never writes here — even when it settles later — so the
+     * signal always describes the newest query. The widget additionally shows
+     * its own load-error UI; this signal is for error/retry UI outside the
+     * widget.
      */
     readonly error: Signal<unknown>;
     /**
@@ -279,41 +280,22 @@ export function dxRemoteStore<TItem, TKey = unknown>(
     };
 
     const deps = options.deps ?? [];
-    let debounceTimer: ReturnType<typeof setTimeout> | undefined;
     if (deps.length > 0) {
-        const debounceMs = options.debounce ?? 0;
-        const run = (): void => {
-            debounceTimer = undefined;
-            dataSource.pageIndex(0);
-            void reload();
-        };
-        let first = true;
-        effect(
+        // Dependencies describe the query, so a change starts a new result
+        // set: reset to the first page (mirroring `DataSource.filter()`
+        // semantics) and reload. The helper owns the debounce timer,
+        // including clearing it on injector destruction.
+        watchDxSignals(
+            deps,
             () => {
-                for (const dependency of deps) {
-                    dependency();
-                }
-                if (first) {
-                    first = false;
-                    return;
-                }
-                if (debounceTimer !== undefined) {
-                    clearTimeout(debounceTimer);
-                }
-                if (debounceMs > 0) {
-                    debounceTimer = setTimeout(run, debounceMs);
-                } else {
-                    untracked(run);
-                }
+                dataSource.pageIndex(0);
+                void reload();
             },
-            { injector },
+            { debounceMs: options.debounce, injector },
         );
     }
 
     injector.get(DestroyRef).onDestroy(() => {
-        if (debounceTimer !== undefined) {
-            clearTimeout(debounceTimer);
-        }
         abortInFlightLoads();
         for (const controller of inFlightByKey) {
             controller.abort();

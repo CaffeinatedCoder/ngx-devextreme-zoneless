@@ -13,6 +13,8 @@ import {
     type DxBindingAdapter,
     type DxDateValue,
     type DxFilterExpression,
+    type DxHostComponent,
+    type DxHostOptionName,
     type DxHostOptionValue,
     type DxInstanceOf,
     type DxOptionChangedArgs,
@@ -175,78 +177,80 @@ export class DxTreeViewSelectedNodeKeysDirective<
 }
 
 /* ------------------------------------------------------------------------ *
- *  Grid state beyond selection: focused row, filter, paging, layout state
+ *  Grid state beyond selection: focused row, filter, paging, layout state.
+ *  dxDataGrid and dxTreeList share these APIs, so each capability is written
+ *  once as an abstract base (the same idiom as the core family bases) and
+ *  the per-widget directives only inject their host.
  * ------------------------------------------------------------------------ */
 
-/** `[(dxFocusedRowKey)]` for `dx-data-grid` (requires `focusedRowEnabled`); `null` clears the focus. */
+/** `[(dxFocusedRowKey)]` base shared by the grid-like widgets; `null` clears the focus. */
+@Directive()
+export abstract class DxFocusedRowKeyDirectiveBase<
+    THost extends DxHostComponent,
+    TKey,
+> extends DxBindingDirectiveBase {
+    readonly dxFocusedRowKey = model.required<TKey | null>();
+
+    protected constructor(host: THost, optionName: DxHostOptionName<THost>) {
+        super();
+        this.bindOption<THost, TKey | null>(host, optionName, this.dxFocusedRowKey);
+    }
+}
+
+/** `[(dxFocusedRowKey)]` for `dx-data-grid` (requires `focusedRowEnabled`). */
 @Directive({ selector: 'dx-data-grid[dxFocusedRowKey]', exportAs: 'dxFocusedRowKey' })
 export class DxDataGridFocusedRowKeyDirective<
     TRowData = unknown,
     TKey = unknown,
-> extends DxBindingDirectiveBase {
-    readonly dxFocusedRowKey = model.required<TKey | null>();
-
+> extends DxFocusedRowKeyDirectiveBase<DxDataGridComponent<TRowData, TKey>, TKey> {
     constructor() {
-        super();
-        this.bindOption<DxDataGridComponent<TRowData, TKey>, TKey | null>(
-            inject(DxDataGridComponent, { self: true }),
-            'focusedRowKey',
-            this.dxFocusedRowKey,
-        );
+        super(inject(DxDataGridComponent, { self: true }), 'focusedRowKey');
     }
 }
 
-/** `[(dxFocusedRowKey)]` for `dx-tree-list` (requires `focusedRowEnabled`); `null` clears the focus. */
+/** `[(dxFocusedRowKey)]` for `dx-tree-list` (requires `focusedRowEnabled`). */
 @Directive({ selector: 'dx-tree-list[dxFocusedRowKey]', exportAs: 'dxFocusedRowKey' })
 export class DxTreeListFocusedRowKeyDirective<
     TRowData = unknown,
     TKey = unknown,
-> extends DxBindingDirectiveBase {
-    readonly dxFocusedRowKey = model.required<TKey | null>();
-
+> extends DxFocusedRowKeyDirectiveBase<DxTreeListComponent<TRowData, TKey>, TKey> {
     constructor() {
-        super();
-        this.bindOption<DxTreeListComponent<TRowData, TKey>, TKey | null>(
-            inject(DxTreeListComponent, { self: true }),
-            'focusedRowKey',
-            this.dxFocusedRowKey,
-        );
+        super(inject(DxTreeListComponent, { self: true }), 'focusedRowKey');
     }
 }
 
-/** `[(dxFilterValue)]` for `dx-data-grid`; `null` clears the filter. */
+/** `[(dxFilterValue)]` base shared by the grid-like widgets; `null` clears the filter. */
+@Directive()
+export abstract class DxFilterValueDirectiveBase<
+    THost extends DxHostComponent,
+> extends DxBindingDirectiveBase {
+    readonly dxFilterValue = model.required<DxFilterExpression | null>();
+
+    protected constructor(host: THost, optionName: DxHostOptionName<THost>) {
+        super();
+        this.bindOption<THost, DxFilterExpression | null>(host, optionName, this.dxFilterValue);
+    }
+}
+
+/** `[(dxFilterValue)]` for `dx-data-grid`. */
 @Directive({ selector: 'dx-data-grid[dxFilterValue]', exportAs: 'dxFilterValue' })
 export class DxDataGridFilterValueDirective<
     TRowData = unknown,
     TKey = unknown,
-> extends DxBindingDirectiveBase {
-    readonly dxFilterValue = model.required<DxFilterExpression | null>();
-
+> extends DxFilterValueDirectiveBase<DxDataGridComponent<TRowData, TKey>> {
     constructor() {
-        super();
-        this.bindOption<DxDataGridComponent<TRowData, TKey>, DxFilterExpression | null>(
-            inject(DxDataGridComponent, { self: true }),
-            'filterValue',
-            this.dxFilterValue,
-        );
+        super(inject(DxDataGridComponent, { self: true }), 'filterValue');
     }
 }
 
-/** `[(dxFilterValue)]` for `dx-tree-list`; `null` clears the filter. */
+/** `[(dxFilterValue)]` for `dx-tree-list`. */
 @Directive({ selector: 'dx-tree-list[dxFilterValue]', exportAs: 'dxFilterValue' })
 export class DxTreeListFilterValueDirective<
     TRowData = unknown,
     TKey = unknown,
-> extends DxBindingDirectiveBase {
-    readonly dxFilterValue = model.required<DxFilterExpression | null>();
-
+> extends DxFilterValueDirectiveBase<DxTreeListComponent<TRowData, TKey>> {
     constructor() {
-        super();
-        this.bindOption<DxTreeListComponent<TRowData, TKey>, DxFilterExpression | null>(
-            inject(DxTreeListComponent, { self: true }),
-            'filterValue',
-            this.dxFilterValue,
-        );
+        super(inject(DxTreeListComponent, { self: true }), 'filterValue');
     }
 }
 
@@ -264,42 +268,66 @@ interface GridStateLike {
 
 /**
  * Paging lives under the nested `paging` option (`paging.pageIndex`), which
- * option-name typing deliberately does not cover — these adapters go through
- * the `pageIndex()` / `pageSize()` methods instead and listen for the nested
- * option change. They additionally re-read on `contentReady`: paging can
+ * option-name typing deliberately does not cover — this adapter goes through
+ * the `pageIndex()` / `pageSize()` methods instead and listens for the nested
+ * option change. It additionally re-reads on `contentReady`: paging can
  * change beneath the `paging` option, without any `optionChanged`, when the
  * bound `DataSource` is manipulated directly (`dataSource.pageIndex(0)` +
  * reload — e.g. a `dxRemoteStore` dependency-driven page reset), and
  * `contentReady` is the event the grid fires after rendering any such change.
  */
-function pageIndexAdapter<TInstance extends DxWidget & GridPagingLike>(): DxBindingAdapter<
-    TInstance,
-    number
-> {
+function gridPagingAdapter(
+    method: 'pageIndex' | 'pageSize',
+): DxBindingAdapter<DxWidget & GridPagingLike, number> {
     return {
         // `optionChanged`/`contentReady` exist on every widget; the cast is
-        // only needed because `TInstance` is an unresolved type parameter here.
-        events: ['optionChanged', 'contentReady'] as unknown as readonly DxAdapterEventName<TInstance>[],
-        read: (instance) => instance.pageIndex(),
-        write: (instance, value) => void instance.pageIndex(value),
+        // only needed because the structural instance type carries no
+        // `Properties` bag to derive them from.
+        events: ['optionChanged', 'contentReady'] as unknown as readonly DxAdapterEventName<
+            DxWidget & GridPagingLike
+        >[],
+        read: (instance) => instance[method](),
+        write: (instance, value) => void instance[method](value),
         accept: (eventName, eventArgs) =>
             (eventName as string) === 'contentReady' ||
             (eventArgs as DxOptionChangedArgs).name === 'paging',
     };
 }
 
-function pageSizeAdapter<TInstance extends DxWidget & GridPagingLike>(): DxBindingAdapter<
-    TInstance,
-    number
-> {
-    return {
-        events: ['optionChanged', 'contentReady'] as unknown as readonly DxAdapterEventName<TInstance>[],
-        read: (instance) => instance.pageSize(),
-        write: (instance, value) => void instance.pageSize(value),
-        accept: (eventName, eventArgs) =>
-            (eventName as string) === 'contentReady' ||
-            (eventArgs as DxOptionChangedArgs).name === 'paging',
-    };
+/** `[(dxPageIndex)]` base shared by the grid-like widgets (zero-based). */
+@Directive()
+export abstract class DxPageIndexDirectiveBase<
+    THost extends DxHostComponent<DxWidget & GridPagingLike>,
+> extends DxBindingDirectiveBase {
+    readonly dxPageIndex = model.required<number>();
+
+    protected constructor(host: THost) {
+        super();
+        this.bindAdapter<THost, number>(
+            host,
+            this.dxPageIndex,
+            // The `THost` constraint guarantees the instance shape; the cast
+            // bridges TS's inability to prove it for an unresolved parameter.
+            gridPagingAdapter('pageIndex') as DxBindingAdapter<DxInstanceOf<THost>, number>,
+        );
+    }
+}
+
+/** `[(dxPageSize)]` base shared by the grid-like widgets. */
+@Directive()
+export abstract class DxPageSizeDirectiveBase<
+    THost extends DxHostComponent<DxWidget & GridPagingLike>,
+> extends DxBindingDirectiveBase {
+    readonly dxPageSize = model.required<number>();
+
+    protected constructor(host: THost) {
+        super();
+        this.bindAdapter<THost, number>(
+            host,
+            this.dxPageSize,
+            gridPagingAdapter('pageSize') as DxBindingAdapter<DxInstanceOf<THost>, number>,
+        );
+    }
 }
 
 /** `[(dxPageIndex)]` for `dx-data-grid` (zero-based). */
@@ -307,16 +335,9 @@ function pageSizeAdapter<TInstance extends DxWidget & GridPagingLike>(): DxBindi
 export class DxDataGridPageIndexDirective<
     TRowData = unknown,
     TKey = unknown,
-> extends DxBindingDirectiveBase {
-    readonly dxPageIndex = model.required<number>();
-
+> extends DxPageIndexDirectiveBase<DxDataGridComponent<TRowData, TKey>> {
     constructor() {
-        super();
-        this.bindAdapter<DxDataGridComponent<TRowData, TKey>, number>(
-            inject(DxDataGridComponent, { self: true }),
-            this.dxPageIndex,
-            pageIndexAdapter<DxInstanceOf<DxDataGridComponent<TRowData, TKey>>>(),
-        );
+        super(inject(DxDataGridComponent, { self: true }));
     }
 }
 
@@ -325,16 +346,9 @@ export class DxDataGridPageIndexDirective<
 export class DxTreeListPageIndexDirective<
     TRowData = unknown,
     TKey = unknown,
-> extends DxBindingDirectiveBase {
-    readonly dxPageIndex = model.required<number>();
-
+> extends DxPageIndexDirectiveBase<DxTreeListComponent<TRowData, TKey>> {
     constructor() {
-        super();
-        this.bindAdapter<DxTreeListComponent<TRowData, TKey>, number>(
-            inject(DxTreeListComponent, { self: true }),
-            this.dxPageIndex,
-            pageIndexAdapter<DxInstanceOf<DxTreeListComponent<TRowData, TKey>>>(),
-        );
+        super(inject(DxTreeListComponent, { self: true }));
     }
 }
 
@@ -343,16 +357,9 @@ export class DxTreeListPageIndexDirective<
 export class DxDataGridPageSizeDirective<
     TRowData = unknown,
     TKey = unknown,
-> extends DxBindingDirectiveBase {
-    readonly dxPageSize = model.required<number>();
-
+> extends DxPageSizeDirectiveBase<DxDataGridComponent<TRowData, TKey>> {
     constructor() {
-        super();
-        this.bindAdapter<DxDataGridComponent<TRowData, TKey>, number>(
-            inject(DxDataGridComponent, { self: true }),
-            this.dxPageSize,
-            pageSizeAdapter<DxInstanceOf<DxDataGridComponent<TRowData, TKey>>>(),
-        );
+        super(inject(DxDataGridComponent, { self: true }));
     }
 }
 
@@ -361,16 +368,9 @@ export class DxDataGridPageSizeDirective<
 export class DxTreeListPageSizeDirective<
     TRowData = unknown,
     TKey = unknown,
-> extends DxBindingDirectiveBase {
-    readonly dxPageSize = model.required<number>();
-
+> extends DxPageSizeDirectiveBase<DxTreeListComponent<TRowData, TKey>> {
     constructor() {
-        super();
-        this.bindAdapter<DxTreeListComponent<TRowData, TKey>, number>(
-            inject(DxTreeListComponent, { self: true }),
-            this.dxPageSize,
-            pageSizeAdapter<DxInstanceOf<DxTreeListComponent<TRowData, TKey>>>(),
-        );
+        super(inject(DxTreeListComponent, { self: true }));
     }
 }
 
@@ -392,12 +392,11 @@ interface GridSearchLike {
  * that to `''` so the model type stays a plain `string` and "cleared" has one
  * representation instead of two.
  */
-function searchPanelTextAdapter<TInstance extends DxWidget & GridSearchLike>(): DxBindingAdapter<
-    TInstance,
-    string
-> {
+function searchPanelTextAdapter(): DxBindingAdapter<DxWidget & GridSearchLike, string> {
     return {
-        events: ['optionChanged', 'contentReady'] as unknown as readonly DxAdapterEventName<TInstance>[],
+        events: ['optionChanged', 'contentReady'] as unknown as readonly DxAdapterEventName<
+            DxWidget & GridSearchLike
+        >[],
         read: (instance) =>
             ((instance.option as (name: string) => unknown)('searchPanel.text') as
                 | string
@@ -410,9 +409,9 @@ function searchPanelTextAdapter<TInstance extends DxWidget & GridSearchLike>(): 
 }
 
 /**
- * `[(dxSearchPanelText)]` for `dx-data-grid` — two-way binds the search
- * panel's phrase to a signal, so the grid's own search box can drive query
- * state that lives outside the widget:
+ * `[(dxSearchPanelText)]` base shared by the grid-like widgets — two-way
+ * binds the search panel's phrase to a signal, so the grid's own search box
+ * can drive query state that lives outside the widget:
  *
  * ```html
  * <dx-data-grid [(dxSearchPanelText)]="search" [dxSearchPanelTextDebounce]="300">
@@ -426,42 +425,43 @@ function searchPanelTextAdapter<TInstance extends DxWidget & GridSearchLike>(): 
  * that debounce is this binding's, and is independent of the widget's own
  * `searchPanel` timeout.
  */
-@Directive({ selector: 'dx-data-grid[dxSearchPanelText]', exportAs: 'dxSearchPanelText' })
-export class DxDataGridSearchPanelTextDirective<
-    TRowData = unknown,
-    TKey = unknown,
+@Directive()
+export abstract class DxSearchPanelTextDirectiveBase<
+    THost extends DxHostComponent<DxWidget & GridSearchLike>,
 > extends DxBindingDirectiveBase {
     readonly dxSearchPanelText = model.required<string>();
     readonly dxSearchPanelTextDebounce = input(0);
 
-    constructor() {
+    protected constructor(host: THost) {
         super();
-        this.bindAdapter<DxDataGridComponent<TRowData, TKey>, string>(
-            inject(DxDataGridComponent, { self: true }),
+        this.bindAdapter<THost, string>(
+            host,
             this.dxSearchPanelText,
-            searchPanelTextAdapter<DxInstanceOf<DxDataGridComponent<TRowData, TKey>>>(),
+            searchPanelTextAdapter() as DxBindingAdapter<DxInstanceOf<THost>, string>,
             { debounceMs: () => this.dxSearchPanelTextDebounce() },
         );
     }
 }
 
-/** `[(dxSearchPanelText)]` for `dx-tree-list` — see {@link DxDataGridSearchPanelTextDirective}. */
+/** `[(dxSearchPanelText)]` for `dx-data-grid` — see {@link DxSearchPanelTextDirectiveBase}. */
+@Directive({ selector: 'dx-data-grid[dxSearchPanelText]', exportAs: 'dxSearchPanelText' })
+export class DxDataGridSearchPanelTextDirective<
+    TRowData = unknown,
+    TKey = unknown,
+> extends DxSearchPanelTextDirectiveBase<DxDataGridComponent<TRowData, TKey>> {
+    constructor() {
+        super(inject(DxDataGridComponent, { self: true }));
+    }
+}
+
+/** `[(dxSearchPanelText)]` for `dx-tree-list` — see {@link DxSearchPanelTextDirectiveBase}. */
 @Directive({ selector: 'dx-tree-list[dxSearchPanelText]', exportAs: 'dxSearchPanelText' })
 export class DxTreeListSearchPanelTextDirective<
     TRowData = unknown,
     TKey = unknown,
-> extends DxBindingDirectiveBase {
-    readonly dxSearchPanelText = model.required<string>();
-    readonly dxSearchPanelTextDebounce = input(0);
-
+> extends DxSearchPanelTextDirectiveBase<DxTreeListComponent<TRowData, TKey>> {
     constructor() {
-        super();
-        this.bindAdapter<DxTreeListComponent<TRowData, TKey>, string>(
-            inject(DxTreeListComponent, { self: true }),
-            this.dxSearchPanelText,
-            searchPanelTextAdapter<DxInstanceOf<DxTreeListComponent<TRowData, TKey>>>(),
-            { debounceMs: () => this.dxSearchPanelTextDebounce() },
-        );
+        super(inject(DxTreeListComponent, { self: true }));
     }
 }
 
@@ -473,8 +473,8 @@ export class DxTreeListSearchPanelTextDirective<
  */
 export type DxGridState = Record<string, unknown>;
 
-function gridStateAdapter<TInstance extends DxWidget & GridStateLike>(): DxBindingAdapter<
-    TInstance,
+function gridStateAdapter(): DxBindingAdapter<
+    DxWidget & GridStateLike,
     DxGridState | null | undefined
 > {
     return {
@@ -484,7 +484,9 @@ function gridStateAdapter<TInstance extends DxWidget & GridStateLike>(): DxBindi
         // it has rendered: at `initialized` time — when this binding attaches
         // — `state()` still reports `{}`, and without a post-layout re-read
         // the signal would keep that empty snapshot forever.
-        events: ['optionChanged', 'contentReady'] as unknown as readonly DxAdapterEventName<TInstance>[],
+        events: ['optionChanged', 'contentReady'] as unknown as readonly DxAdapterEventName<
+            DxWidget & GridStateLike
+        >[],
         read: (instance) => instance.state() as DxGridState,
         write: (instance, value) => {
             // The empty snapshot above must never travel back into the
@@ -500,8 +502,9 @@ function gridStateAdapter<TInstance extends DxWidget & GridStateLike>(): DxBindi
 }
 
 /**
- * `[(dxGridState)]` — two-way binds the full layout state (`state()` /
- * `stateStoring`) of `dx-data-grid` to a signal, e.g. for persisting layouts:
+ * `[(dxGridState)]` base shared by the grid-like widgets — two-way binds the
+ * full layout state (`state()` / `stateStoring`) to a signal, e.g. for
+ * persisting layouts:
  *
  *  - signal `undefined` ⇒ nothing is pushed; the widget's current state is
  *    pulled once ready (first run without a saved layout);
@@ -511,42 +514,43 @@ function gridStateAdapter<TInstance extends DxWidget & GridStateLike>(): DxBindi
  * Widget → signal reads are debounced via `dxGridStateDebounce` (default
  * 100 ms) because user interactions can burst option changes.
  */
-@Directive({ selector: 'dx-data-grid[dxGridState]', exportAs: 'dxGridState' })
-export class DxDataGridStateDirective<
-    TRowData = unknown,
-    TKey = unknown,
+@Directive()
+export abstract class DxGridStateDirectiveBase<
+    THost extends DxHostComponent<DxWidget & GridStateLike>,
 > extends DxBindingDirectiveBase {
     readonly dxGridState = model.required<DxGridState | null | undefined>();
     readonly dxGridStateDebounce = input(100);
 
-    constructor() {
+    protected constructor(host: THost) {
         super();
-        this.bindAdapter<DxDataGridComponent<TRowData, TKey>, DxGridState | null | undefined>(
-            inject(DxDataGridComponent, { self: true }),
+        this.bindAdapter<THost, DxGridState | null | undefined>(
+            host,
             this.dxGridState,
-            gridStateAdapter<DxInstanceOf<DxDataGridComponent<TRowData, TKey>>>(),
+            gridStateAdapter() as DxBindingAdapter<DxInstanceOf<THost>, DxGridState | null | undefined>,
             { debounceMs: () => this.dxGridStateDebounce() },
         );
     }
 }
 
-/** `[(dxGridState)]` for `dx-tree-list` — see {@link DxDataGridStateDirective}. */
+/** `[(dxGridState)]` for `dx-data-grid` — see {@link DxGridStateDirectiveBase}. */
+@Directive({ selector: 'dx-data-grid[dxGridState]', exportAs: 'dxGridState' })
+export class DxDataGridStateDirective<
+    TRowData = unknown,
+    TKey = unknown,
+> extends DxGridStateDirectiveBase<DxDataGridComponent<TRowData, TKey>> {
+    constructor() {
+        super(inject(DxDataGridComponent, { self: true }));
+    }
+}
+
+/** `[(dxGridState)]` for `dx-tree-list` — see {@link DxGridStateDirectiveBase}. */
 @Directive({ selector: 'dx-tree-list[dxGridState]', exportAs: 'dxGridState' })
 export class DxTreeListStateDirective<
     TRowData = unknown,
     TKey = unknown,
-> extends DxBindingDirectiveBase {
-    readonly dxGridState = model.required<DxGridState | null | undefined>();
-    readonly dxGridStateDebounce = input(100);
-
+> extends DxGridStateDirectiveBase<DxTreeListComponent<TRowData, TKey>> {
     constructor() {
-        super();
-        this.bindAdapter<DxTreeListComponent<TRowData, TKey>, DxGridState | null | undefined>(
-            inject(DxTreeListComponent, { self: true }),
-            this.dxGridState,
-            gridStateAdapter<DxInstanceOf<DxTreeListComponent<TRowData, TKey>>>(),
-            { debounceMs: () => this.dxGridStateDebounce() },
-        );
+        super(inject(DxTreeListComponent, { self: true }));
     }
 }
 

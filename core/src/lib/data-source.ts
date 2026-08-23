@@ -1,7 +1,6 @@
 import {
     assertInInjectionContext,
     DestroyRef,
-    effect,
     inject,
     Injector,
     untracked,
@@ -9,6 +8,7 @@ import {
 } from '@angular/core';
 import CustomStore from 'devextreme/data/custom_store';
 import DataSource from 'devextreme/data/data_source';
+import { watchDxSignals } from './watch';
 
 /**
  * The data-in half of the zoneless story: DevExtreme components load their
@@ -103,18 +103,5 @@ export function dxReloadOn(
               ? (): unknown => target.reload()
               : (): unknown => target.refresh();
 
-    let first = true;
-    effect(
-        () => {
-            for (const dependency of dependencies) {
-                dependency();
-            }
-            if (first) {
-                first = false;
-                return;
-            }
-            untracked(() => void trigger());
-        },
-        { injector: resolvedInjector },
-    );
+    watchDxSignals(dependencies, () => void trigger(), { injector: resolvedInjector });
 }

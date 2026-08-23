@@ -276,9 +276,13 @@ readonly disabled = dxOptionSignal(this.menu, 'disabled');
 
 For state that is neither an option nor a single event (method-based APIs),
 implement a `DxBindingAdapter` and pass it to `bindDxState` — that is exactly
-how the chart-selection and tree-view directives are built. And if you want
+how the chart-selection and tree-view directives are built. If the widget may
+normalize or partially reject what your `write` hands it (the tree view
+silently skips unknown keys, editors clamp), set `reReadAfterWrite: true` and
+the signal converges to what the widget actually accepted. And if you want
 template sugar for a component we don't cover, a custom directive is ~10
-lines by extending `DxValueDirectiveBase`, `DxVisibleDirectiveBase`, etc.
+lines by extending `DxValueDirectiveBase`, `DxVisibleDirectiveBase`, or the
+grid bases exported from `/data`.
 
 ## Data loading (signals → DataSource)
 
