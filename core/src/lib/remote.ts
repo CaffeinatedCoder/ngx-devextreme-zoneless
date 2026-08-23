@@ -7,7 +7,7 @@ import {
     signal,
     type Signal,
 } from '@angular/core';
-import type { LoadOptions, LoadResult } from 'devextreme/common/data';
+import type { LangParams, LoadOptions, LoadResult } from 'devextreme/common/data';
 import CustomStore from 'devextreme/data/custom_store';
 import DataSource from 'devextreme/data/data_source';
 import { watchDxSignals } from './watch';
@@ -66,6 +66,21 @@ export interface DxRemoteStoreOptions<TItem, TKey> {
      * signal fed from keystrokes). Manual `reload()` is never debounced.
      */
     readonly debounce?: number;
+    /**
+     * Language-sensitive sorting and filtering (`{ locale, collatorOptions }`),
+     * forwarded to the server on every load so it can collate the way the user
+     * reads. This lives on the `DataSource` rather than the store, which is why
+     * it has to be surfaced here — a store built inside this function cannot be
+     * reached from outside it.
+     *
+     * DevExtreme keeps it in the remote payload only when filtering **and**
+     * sorting are both remote; with either handled locally the grid strips it
+     * before the store is called, on the reasoning that it has nothing left to
+     * send it for. So pair this with `[remoteOperations]="true"` (or an object
+     * form setting at least `filtering` and `sorting`) — the grid's default
+     * `'auto'` resolves to all-local for a custom store and drops it.
+     */
+    readonly langParams?: LangParams;
     /** Explicit injector when called outside an injection context. */
     readonly injector?: Injector;
 }
@@ -250,6 +265,7 @@ export function dxRemoteStore<TItem, TKey = unknown>(
               };
 
     const dataSource = new DataSource<TItem, TKey>({
+        langParams: options.langParams,
         store: new CustomStore<TItem, TKey>({
             key: options.key,
             loadMode: 'processed',
@@ -332,8 +348,8 @@ function normalizeSorting(value: unknown): readonly DxSortingInfo[] {
  * DevExtreme.AspNet.Data server libraries — the same wire format the
  * vendor's own `createStore({ loadUrl })` client produces: structured
  * options JSON-encoded (`filter`, `sort`, `group`, `select`, `totalSummary`,
- * `groupSummary`, with string `sort`/`group` entries normalized to
- * `{ selector }` objects), scalars plain (`skip`, `take`,
+ * `groupSummary`, `langParams`, with string `sort`/`group` entries normalized
+ * to `{ selector }` objects), scalars plain (`skip`, `take`,
  * `requireTotalCount`, `requireGroupCount`).
  *
  * ```ts
@@ -365,6 +381,16 @@ export function dxLoadOptionsParams(loadOptions: LoadOptions): URLSearchParams {
         if (value !== undefined && value !== null) {
             params.set(key, JSON.stringify(normalizeSorting(value)));
         }
+    }
+    // `langParams` rides the loadOptions object at runtime but is absent from
+    // DevExtreme's `LoadOptions` typing — it is declared on `DataSourceOptions`
+    // only — so it is read through an explicit cast rather than from the typed
+    // lists above. Dropping it silently changes collation between client and
+    // server, which is why it is carried even though the typings do not admit
+    // it exists.
+    const langParams: unknown = (loadOptions as { langParams?: unknown }).langParams;
+    if (langParams !== undefined && langParams !== null) {
+        params.set('langParams', JSON.stringify(langParams));
     }
     return params;
 }

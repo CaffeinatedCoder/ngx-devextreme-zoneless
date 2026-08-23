@@ -34,6 +34,27 @@
   `dxRemoteStore({ deps: [search] })` makes the built-in search box a
   server-side search with no external input.
 
+- **`[(dxExpandedRowKeys)]`** for `dx-tree-list` — two-way binds the set of
+  expanded rows to a signal, the piece of hierarchy state a consumer actually
+  wants to persist. `expandedRowKeys` is a top-level typed option and every
+  path that changes it (the expand arrow, `expandRow()`, `collapseRow()`)
+  writes it through the public option setter, so this is a plain option
+  adapter with no `contentReady` re-read — the exception to the family
+  default, pinned by both-direction e2e rather than assumed. There is no
+  `dx-data-grid` counterpart and therefore no shared base: the grid declares
+  no such option and reaches group expansion through methods.
+
+- **`dxRemoteStore({ langParams })` and `langParams` in `dxLoadOptionsParams`** —
+  language-sensitive sorting and filtering (`{ locale, collatorOptions }`) now
+  reaches the server. It was unreachable in both directions before: the member
+  belongs to the `DataSource`, which `dxRemoteStore` constructs internally, and
+  the serializer dropped it — invisibly, since DevExtreme declares it on
+  `DataSourceOptions` and not on `LoadOptions`, so no typing flagged the gap.
+  Note DevExtreme keeps it in the remote payload only when filtering **and**
+  sorting are both remote; the grid's default `remoteOperations: 'auto'`
+  resolves to all-local for a custom store and strips it, so pair it with
+  `[remoteOperations]="true"`.
+
 - **`DxBindingAdapter.reReadAfterWrite`** — an adapter may now opt into a
   post-write convergence read: the engine re-reads the widget immediately
   after every write and folds the result back into the signal. This is for

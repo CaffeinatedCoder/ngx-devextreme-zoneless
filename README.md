@@ -133,6 +133,14 @@ Where DevExtreme declares `value?: any` (SelectBox & friends) the directive is
 | `[dxPageIndex]`, `[dxPageSize]` | `number` (method-based — paging lives under the nested `paging` option) |
 | `[dxGridState]` | `DxGridState \| null \| undefined` — the full layout state (`state()` / `stateStoring`) |
 | `[dxSearchPanelText]` | `string` — the search panel's phrase (method-based: `searchByText`) |
+| `dx-tree-list[dxExpandedRowKeys]` | `readonly TKey[]` — the expanded rows (**`dx-tree-list` only**) |
+
+`[(dxExpandedRowKeys)]` is the expansion-state binding for hierarchies — bind
+it to a signal you persist and a restored tree comes back opened the way the
+user left it. The signal holds the *complete* set, so writing a new array both
+expands and collapses to match, and `[]` collapses everything. It is
+`dx-tree-list` only: `dx-data-grid` declares no such option, and its *group*
+expansion is reachable through `expandRow`/`collapseAll` methods instead.
 
 `[(dxSearchPanelText)]` puts the grid's built-in search box on a signal, so
 the widget's own search can drive query state that lives outside it — pair it
@@ -416,6 +424,14 @@ readonly customerLookup = dxRemoteStore<Customer, number>({
   },
 });
 ```
+
+**Language-sensitive sorting.** Pass `langParams: { locale: 'de' }` and every
+load carries it to the server, so it can collate the way the user reads. It
+belongs to the `DataSource` rather than the store, which is why the option lives
+here. DevExtreme only keeps it in the remote payload when filtering *and*
+sorting are both remote — the default `remoteOperations: 'auto'` resolves to
+all-local for a custom store and strips it — so pair it with
+`[remoteOperations]="true"`.
 
 **Scope: load-only, by design.** Create/update/delete deliberately stay out
 of this first cut — editing flows couple to validation, conflict handling and

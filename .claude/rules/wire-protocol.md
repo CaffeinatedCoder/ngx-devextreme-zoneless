@@ -61,10 +61,24 @@ documentation — which is silent or wrong on all four.
 
 `dxLoadOptionsParams` follows one rule: structured members are JSON-encoded, scalars are plain.
 
-Carried: `filter`, `sort`, `group`, `select`, `totalSummary`, `groupSummary`, `parentIds`, `skip`,
-`take`, `requireTotalCount`, `requireGroupCount`.
+Carried: `filter`, `sort`, `group`, `select`, `totalSummary`, `groupSummary`, `parentIds`,
+`langParams`, `skip`, `take`, `requireTotalCount`, `requireGroupCount`.
+
+`langParams` (`{locale, collatorOptions}`) is the language-sensitive sorting/filtering contract, and
+it was the one member this serializer simply dropped — invisibly, because DevExtreme declares it on
+`DataSourceOptions` and **not** on `LoadOptions`, so nothing typed the omission. It was unreachable
+from this package in both directions until 3.0: it belongs to the `DataSource`, which `dxRemoteStore`
+builds internally, so the store now surfaces a `langParams` option too. The grid keeps it in the
+remote payload only when filtering **and** sorting are both remote — with either local it is spliced
+out before the store is called — and the grid's default `remoteOperations: 'auto'` resolves to
+all-local for a custom store, which strips it. Pinned by rendered row order, not only by `__stats`:
+the stub collates with it, so a client that drops it produces visibly different output.
 
 Deliberately absent, and why:
+
+- `isLoadingAll` — set only by `DataController.loadAll()`, reached from export-all and the
+  AI-assistant selection commands, never by an ordinary select-all checkbox. Out of scope until a
+  consumer needs export
 
 - `searchExpr` / `searchOperation` / `searchValue` — folded into `filter` by `useDefaultSearch: true`
   on the store, matching the vendor client, so the load function only ever deals in filter

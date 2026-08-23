@@ -51,6 +51,7 @@ test.beforeEach(async ({ page, request }) => {
     await expect(page.locator('#grid-remote-orders .dx-data-row').first()).toBeVisible();
     await expect(page.locator('#grid-grouped .dx-group-row').first()).toBeVisible();
     await expect(page.locator('#tree-nodes .dx-data-row').first()).toBeVisible();
+    await expect(page.locator('#grid-collated .dx-data-row').first()).toBeVisible();
     await expect(page.locator('#lookup-customer')).toBeVisible();
 });
 
@@ -479,6 +480,32 @@ test.describe('remote grouping and summaries', () => {
         await page.reload();
         await expect(page.locator('#grid-grouped .dx-datagrid-total-footer')).toContainText('Sum');
         await stubConfig(request, { stringCounts: false });
+    });
+});
+
+test.describe('language-sensitive sorting (langParams)', () => {
+    // `langParams` is the one loadOptions member the serializer used to drop
+    // outright, and it was unreachable from this package in both directions:
+    // it lives on the DataSource, which dxRemoteStore builds internally, and it
+    // is absent from DevExtreme's own `LoadOptions` typing so nothing flagged
+    // the omission.
+    test('langParams reaches the wire, and the server collates with it', async ({
+        page,
+        request,
+    }) => {
+        const sent = (await stubStats(request)).last['/api/collated'];
+        expect(sent?.['langParams']).toEqual({ locale: 'de' });
+
+        // German collation sorts 'ö' with 'o', so 'Öl' lands second. Code-unit
+        // order — what the server falls back to the moment the client drops
+        // `langParams` — puts it last, after 'Zebra'. The rendered order is
+        // therefore the round-trip proof, not just the recorded request.
+        await expect(page.locator('#grid-collated .dx-data-row td')).toHaveText([
+            'Apfel',
+            'Öl',
+            'Osten',
+            'Zebra',
+        ]);
     });
 });
 

@@ -10,6 +10,7 @@
  *
  *   GET  /api/orders     grid dataset (id, customerId, customer, status, amount)
  *   GET  /api/customers  lookup/master dataset (id, name)
+ *   GET  /api/collated   collation dataset (id, name) — honours `langParams`
  *   POST /api/__config   {"delayMs":500,"failCount":2,"failStatus":500} (merged)
  *   POST /api/__reset    reset config and stats
  *   GET  /api/__stats    {"requests","byPath","last" (per path),"history"}
@@ -61,6 +62,17 @@ const nodes = [
     { id: 9, parentId: 5, name: 'Toronto', kind: 'city' },
 ];
 
+// Language-sensitive sorting. Code-unit order puts 'Öl' (U+00D6) last, after
+// 'Zebra'; German collation sorts 'ö' with 'o', putting it second. That gap is
+// what makes `langParams` observable in rendered output rather than only on the
+// wire — its own path, since the row order here is nobody else's business.
+const collated = [
+    { id: 1, name: 'Zebra' },
+    { id: 2, name: 'Öl' },
+    { id: 3, name: 'Apfel' },
+    { id: 4, name: 'Osten' },
+];
+
 const DATASETS = new Map([
     ['/api/orders', orders],
     // Same rows on a second path: the grouped/summarized screen must not add
@@ -69,6 +81,7 @@ const DATASETS = new Map([
     ['/api/grouped-orders', orders],
     ['/api/customers', customers],
     ['/api/nodes', nodes],
+    ['/api/collated', collated],
 ]);
 
 // --- injectable behavior + observability -------------------------------------
@@ -90,7 +103,7 @@ function parseLoadOptions(searchParams) {
         const value = searchParams.get(key);
         if (value !== null) loadOptions[key] = value === 'true';
     }
-    for (const key of ['filter', 'sort', 'group', 'select', 'totalSummary', 'groupSummary', 'parentIds']) {
+    for (const key of ['filter', 'sort', 'group', 'select', 'totalSummary', 'groupSummary', 'parentIds', 'langParams']) {
         const value = searchParams.get(key);
         if (value !== null) loadOptions[key] = JSON.parse(value);
     }
@@ -134,7 +147,15 @@ function evaluateFilter(filter, item) {
     return evaluate(item[selector], value);
 }
 
-function applySort(data, sort) {
+function applySort(data, sort, langParams) {
+    // `langParams` carries the protocol's language-sensitive sorting contract
+    // ({locale, collatorOptions}). Honoured rather than merely recorded, so a
+    // client that drops it produces visibly different row order — which is what
+    // lets an e2e prove the forwarding instead of trusting it.
+    const collator =
+        langParams && langParams.locale
+            ? new Intl.Collator(langParams.locale, langParams.collatorOptions)
+            : undefined;
     const sorted = [...data];
     const entries = Array.isArray(sort) ? sort : [sort];
     sorted.sort((left, right) => {
@@ -143,6 +164,11 @@ function applySort(data, sort) {
             const desc = typeof entry === 'object' && entry.desc ? -1 : 1;
             const a = normalize(left[selector]);
             const b = normalize(right[selector]);
+            if (collator && typeof a === 'string' && typeof b === 'string') {
+                const compared = collator.compare(a, b);
+                if (compared !== 0) return compared * desc;
+                continue;
+            }
             if (a < b) return -1 * desc;
             if (a > b) return 1 * desc;
         }
@@ -223,7 +249,7 @@ function loadDataset(dataset, loadOptions, path) {
     }
     const totalCount = loadOptions.requireTotalCount ? data.length : undefined;
     if (loadOptions.sort !== undefined) {
-        data = applySort(data, loadOptions.sort);
+        data = applySort(data, loadOptions.sort, loadOptions.langParams);
     }
     if (loadOptions.group !== undefined) {
         let groups = applyGroup(data, loadOptions.group, loadOptions.groupSummary);

@@ -560,6 +560,48 @@ export class DxTreeListStateDirective<
     }
 }
 
+/**
+ * `[(dxExpandedRowKeys)]` for `dx-tree-list` — two-way binds the set of
+ * expanded rows to a signal, so a hierarchy's expansion state can be restored,
+ * persisted, or driven from outside the widget:
+ *
+ * ```html
+ * <dx-tree-list [(dxExpandedRowKeys)]="expanded" keyExpr="id" parentIdExpr="parentId">
+ * ```
+ *
+ * The signal holds the *complete* set of expanded keys, so writing `[]`
+ * collapses everything and writing a new array both expands and collapses to
+ * match it.
+ *
+ * Unlike the bindings above this one has no `dx-data-grid` counterpart, and
+ * gets no shared base for it: `expandedRowKeys` is declared on `dxTreeList`
+ * alone, while a data grid's *group* expansion is reachable only through
+ * `expandRow`/`collapseAll` methods. A family of one is written once.
+ *
+ * It is also a plain option adapter with **no** `contentReady` re-read, which
+ * is the exception the family default warrants a reason for: `expandedRowKeys`
+ * is a top-level option, and every path that changes it — the user clicking an
+ * expand arrow, `expandRow()`, `collapseRow()` — writes it through the public
+ * option setter and raises an ordinary `optionChanged`. Both directions are
+ * pinned by e2e rather than by assumption.
+ */
+@Directive({ selector: 'dx-tree-list[dxExpandedRowKeys]', exportAs: 'dxExpandedRowKeys' })
+export class DxTreeListExpandedRowKeysDirective<
+    TRowData = unknown,
+    TKey = unknown,
+> extends DxBindingDirectiveBase {
+    readonly dxExpandedRowKeys = model.required<readonly TKey[]>();
+
+    constructor() {
+        super();
+        this.bindOption<DxTreeListComponent<TRowData, TKey>, readonly TKey[]>(
+            inject(DxTreeListComponent, { self: true }),
+            'expandedRowKeys',
+            this.dxExpandedRowKeys,
+        );
+    }
+}
+
 /** All data-component adapter directives, for convenient bulk import. */
 export const DX_DATA_DIRECTIVES = [
     DxDataGridFilterValueDirective,
@@ -573,6 +615,7 @@ export const DX_DATA_DIRECTIVES = [
     DxGanttSelectedRowKeyDirective,
     DxSchedulerCurrentDateDirective,
     DxSchedulerCurrentViewDirective,
+    DxTreeListExpandedRowKeysDirective,
     DxTreeListFilterValueDirective,
     DxTreeListFocusedRowKeyDirective,
     DxTreeListPageIndexDirective,

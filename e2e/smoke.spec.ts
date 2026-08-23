@@ -112,6 +112,23 @@ test.describe('data grid [(dxSelectedRowKeys)]', () => {
             page.locator('#grid-selection .dx-data-row.dx-selection'),
         ).toHaveCount(2);
     });
+
+    // An empty array has to reach the widget, where `undefined` deliberately
+    // would not — the engine's "undefined means do not push" rule stops at
+    // `undefined`. This is the option-based half of that contract; the
+    // TreeList collapse-all case is the method-based half. Between them they
+    // are the entire net for a change that skipped empty values as an
+    // "optimization", which would silently break every clear-selection and
+    // collapse-all binding in the library.
+    test('clearing the selection round-trips through an empty array', async ({ page }) => {
+        await readout(page, 'grid-set').click();
+        await expect(page.locator('#grid-selection .dx-data-row.dx-selection')).toHaveCount(2);
+
+        await readout(page, 'grid-clear').click();
+
+        await expect(page.locator('#grid-selection .dx-data-row.dx-selection')).toHaveCount(0);
+        await expect(readout(page, 'grid-readout')).toHaveText('[]');
+    });
 });
 
 test.describe('signal-driven data loading', () => {
@@ -188,6 +205,83 @@ test.describe('tree view [(dxSelectedNodeKeys)]', () => {
         await expect(selectedNodes(page)).toHaveCount(1);
         await expect(selectedNodes(page)).toContainText('Banana');
         await expect(readout(page, 'tree-readout')).toHaveText(/\[\s*3\s*\]/);
+    });
+});
+
+test.describe('tree list [(dxExpandedRowKeys)]', () => {
+    const rows = (page: Page): Locator => page.locator('#tree-list-expand .dx-data-row');
+
+    // Expansion state is what a consumer persisting a hierarchy actually wants
+    // on a signal, and every path that changes it — the arrow, `expandRow()`,
+    // `collapseRow()` — writes the top-level option through the public setter.
+    // That is why this adapter carries no `contentReady` re-read; these two
+    // cases are what makes the claim checkable rather than assumed.
+    test('widget → signal: expanding a node updates the readout', async ({ page }) => {
+        await expect(rows(page)).toHaveCount(2);
+
+        await page.locator('#tree-list-expand .dx-treelist-collapsed').first().click();
+
+        await expect(readout(page, 'expand-readout')).toContainText('1');
+        await expect(rows(page)).toHaveCount(4);
+    });
+
+    test('signal → widget: setting the signal expands exactly that set', async ({ page }) => {
+        await expect(rows(page)).toHaveCount(2);
+
+        await readout(page, 'expand-set').click();
+
+        // Vegetables (4) expands and reveals Carrot; the set is exhaustive, so
+        // nothing else is expanded alongside it.
+        await expect(rows(page)).toHaveCount(3);
+        await expect(page.locator('#tree-list-expand')).toContainText('Carrot');
+    });
+
+    // Deliberately expands through the *widget* rather than the button, so
+    // this case does not rest on the same fact the signal->widget case above
+    // already asserts. What is left is the empty-array push on its own —
+    // `[]` has to reach the widget, where `undefined` deliberately would not.
+    test('collapsing everything round-trips through an empty array', async ({ page }) => {
+        await page.locator('#tree-list-expand .dx-treelist-collapsed').first().click();
+        await expect(rows(page)).toHaveCount(4);
+
+        await readout(page, 'expand-clear').click();
+
+        await expect(rows(page)).toHaveCount(2);
+        await expect(readout(page, 'expand-readout')).toHaveText('[]');
+    });
+});
+
+test.describe('tree view [(dxSelectedNodeKeys)] across re-creation', () => {
+    // The other re-creation case drives an option-based binding on a text box.
+    // This one drives a *method-based* adapter that opts into
+    // `reReadAfterWrite`, against a widget whose items arrive after it
+    // initializes — the shape a remote-backed tree inside an `@if` or a tab
+    // panel actually has.
+    //
+    // The hazard: on re-attach the binding pushes the surviving selection into
+    // a widget that does not know its nodes yet, `selectItem` silently no-ops
+    // on every key, and the post-write convergence read folds the widget's
+    // empty selection back over the state the push was restoring. Measured
+    // against 26.1.3 that does not happen — which is the point of pinning it,
+    // because enabling `reReadAfterWrite` on another adapter (chart point
+    // selection is the standing candidate) inherits this exact exposure.
+    test('a selection survives destroy and re-create with late-arriving items', async ({
+        page,
+    }) => {
+        await expect(page.locator('#tree-async .dx-treeview-item').first()).toBeVisible();
+
+        await page.locator('#tree-async .dx-checkbox').nth(2).click();
+        await expect(readout(page, 'async-tree-readout')).toContainText('3');
+
+        await readout(page, 'async-tree-toggle').click();
+        await expect(page.locator('#tree-async')).toHaveCount(0);
+        await readout(page, 'async-tree-toggle').click();
+
+        await expect(page.locator('#tree-async .dx-treeview-item').first()).toBeVisible();
+        await expect(readout(page, 'async-tree-readout')).toContainText('3');
+        // And the widget agrees — the restore reached it, rather than the
+        // signal merely keeping a value the widget never accepted.
+        await expect(page.locator('#tree-async .dx-checkbox.dx-checkbox-checked')).toHaveCount(1);
     });
 });
 

@@ -28,6 +28,11 @@ interface Order {
     readonly amount: number;
 }
 
+interface Collated {
+    readonly id: number;
+    readonly name: string;
+}
+
 interface TreeNode {
     readonly id: number;
     readonly parentId: number;
@@ -184,6 +189,15 @@ function combineFilters(
             <dxi-column dataField="kind" />
         </dx-tree-list>
 
+        <h3>Language-sensitive sorting (langParams)</h3>
+        <dx-data-grid
+            id="grid-collated"
+            [dataSource]="collated.dataSource"
+            [remoteOperations]="true"
+            style="max-width:320px">
+            <dxi-column dataField="name" [sortIndex]="0" sortOrder="asc" />
+        </dx-data-grid>
+
         <h3>Lookup editor (debounced search + byKey)</h3>
         <div class="row">
             <dx-select-box
@@ -275,6 +289,17 @@ export class RemoteComponent {
         key: 'id',
         load: async (options, signal) =>
             fetchJson<LoadResult<TreeNode>>(`/api/nodes?${dxLoadOptionsParams(options)}`, signal),
+    });
+
+    // --- screen (f): language-sensitive sorting ------------------------------
+    // `langParams` belongs to the DataSource, so the store surfaces it; the
+    // server collates with it. `remoteOperations` must leave both filtering and
+    // sorting remote or DevExtreme strips it before the store is called.
+    readonly collated = dxRemoteStore<Collated, number>({
+        key: 'id',
+        langParams: { locale: 'de' },
+        load: async (options, signal) =>
+            fetchJson<LoadResult<Collated>>(`/api/collated?${dxLoadOptionsParams(options)}`, signal),
     });
 
     // --- screen (c): lookup with byKey --------------------------------------

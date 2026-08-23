@@ -11,6 +11,7 @@ import { DxSelectBoxComponent, DxSelectBoxModule } from 'devextreme-angular/ui/s
 import { DxSliderModule } from 'devextreme-angular/ui/slider';
 import { DxTabsModule } from 'devextreme-angular/ui/tabs';
 import { DxTextBoxComponent, DxTextBoxModule } from 'devextreme-angular/ui/text-box';
+import { DxTreeListModule } from 'devextreme-angular/ui/tree-list';
 import { DxTreeViewModule } from 'devextreme-angular/ui/tree-view';
 import {
     bindDxOption,
@@ -57,6 +58,7 @@ interface Order {
         DxSliderModule,
         DxTabsModule,
         DxTextBoxModule,
+        DxTreeListModule,
         DxTreeViewModule,
         DX_SIGNAL_DIRECTIVES,
     ],
@@ -105,6 +107,7 @@ interface Order {
         <p>
             <span class="readout" data-testid="grid-readout">{{ selectedIds() | json }}</span>
             <button data-testid="grid-set" (click)="selectedIds.set([1, 3])">select 1 &amp; 3</button>
+            <button data-testid="grid-clear" (click)="selectedIds.set([])">clear selection</button>
             <button data-testid="orders-add" (click)="addOrder()">add order</button>
         </p>
 
@@ -205,6 +208,46 @@ interface Order {
                 select banana + bogus key
             </button>
         </div>
+
+        <h3>TreeList expansion</h3>
+        <dx-tree-list
+            id="tree-list-expand"
+            [dataSource]="treeListRows"
+            keyExpr="id"
+            parentIdExpr="parentId"
+            [autoExpandAll]="false"
+            [(dxExpandedRowKeys)]="expandedKeys"
+            [showBorders]="true"
+            style="max-width:420px">
+            <dxi-column dataField="name" />
+        </dx-tree-list>
+        <p>
+            <span class="readout" data-testid="expand-readout">{{ expandedKeys() | json }}</span>
+            <button data-testid="expand-set" (click)="expandedKeys.set([4])">expand Vegetables</button>
+            <button data-testid="expand-clear" (click)="expandedKeys.set([])">collapse all</button>
+        </p>
+
+        <h3>TreeView selection across re-creation (async items)</h3>
+        <div class="row">
+            <button data-testid="async-tree-toggle" (click)="showAsyncTree.set(!showAsyncTree())">
+                toggle tree
+            </button>
+            <span class="readout" data-testid="async-tree-readout">{{ asyncTreeKeys() | json }}</span>
+        </div>
+        @if (showAsyncTree()) {
+            <dx-tree-view
+                id="tree-async"
+                [dataSource]="asyncTreeSource"
+                dataStructure="plain"
+                keyExpr="id"
+                parentIdExpr="parentId"
+                displayExpr="text"
+                selectionMode="multiple"
+                showCheckBoxesMode="normal"
+                [selectByClick]="true"
+                [(dxSelectedNodeKeys)]="asyncTreeKeys"
+                style="max-width:240px" />
+        }
 
         <h3>Popup</h3>
         <div class="row">
@@ -329,6 +372,42 @@ export class SmokeComponent {
     private readonly savedState = signal<Record<string, unknown> | undefined>(undefined);
     readonly points = signal<readonly DxChartSelectedPoint[]>([]);
     readonly treeKeys = signal<readonly number[]>([]);
+    /**
+     * Same binding, but the items arrive *after* the widget initializes — the
+     * shape a remote-backed tree inside an `@if` or a tab panel actually has.
+     * On re-creation the binding re-attaches and pushes the surviving
+     * selection into a widget that does not know its nodes yet.
+     */
+    /**
+     * The signal holds the complete set of expanded keys, so writing a new
+     * array both expands and collapses to match it, and `[]` collapses all.
+     */
+    readonly expandedKeys = signal<readonly number[]>([]);
+    readonly treeListRows = [
+        { id: 1, parentId: 0, name: 'Fruit' },
+        { id: 2, parentId: 1, name: 'Apple' },
+        { id: 3, parentId: 1, name: 'Banana' },
+        { id: 4, parentId: 0, name: 'Vegetables' },
+        { id: 5, parentId: 4, name: 'Carrot' },
+    ];
+
+    readonly showAsyncTree = signal(true);
+    readonly asyncTreeKeys = signal<readonly number[]>([]);
+    readonly asyncTreeSource = new DataSource<{ id: number }, number>({
+        store: new CustomStore<{ id: number }, number>({
+            key: 'id',
+            loadMode: 'raw',
+            load: async () => {
+                await new Promise((resolve) => setTimeout(resolve, 60));
+                return [
+                    { id: 1, text: 'Fruit', parentId: 0, expanded: true },
+                    { id: 2, text: 'Apple', parentId: 1 },
+                    { id: 3, text: 'Banana', parentId: 1 },
+                    { id: 4, text: 'Vegetables', parentId: 0 },
+                ];
+            },
+        }),
+    });
 
     readonly treeItems = [
         {

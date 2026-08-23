@@ -10,6 +10,7 @@ import { DxDataGridComponent } from 'devextreme-angular/ui/data-grid';
 import { DxFormComponent } from 'devextreme-angular/ui/form';
 import { DxPopupComponent } from 'devextreme-angular/ui/popup';
 import { DxTextBoxComponent } from 'devextreme-angular/ui/text-box';
+import { DxTreeListComponent } from 'devextreme-angular/ui/tree-list';
 import type {
     DxBindingAdapter,
     DxHostEventArg,
@@ -106,6 +107,16 @@ type Grid = DxDataGridComponent<{ id: number }, number>;
 const gridFilterOption: DxHostOptionName<Grid> = 'filterValue';
 const gridFocusOption: DxHostOptionName<Grid> = 'focusedRowKey';
 expectType<number | undefined>(undefined as DxHostOptionValue<Grid, 'focusedRowKey'>);
+
+/* `[(dxExpandedRowKeys)]` is a plain option binding, so its option name and
+ * element type must stay derivable from the TreeList's Properties. It is also
+ * the one grid-state binding with no dx-data-grid counterpart: the grid has no
+ * such option, which is why the directive is TreeList-only. */
+type TreeList = DxTreeListComponent<{ id: number }, number>;
+const treeListExpandedOption: DxHostOptionName<TreeList> = 'expandedRowKeys';
+expectType<number[] | undefined>(undefined as DxHostOptionValue<TreeList, 'expandedRowKeys'>);
+// @ts-expect-error — dx-data-grid has no expandedRowKeys option
+const gridExpandedOption: DxHostOptionName<Grid> = 'expandedRowKeys';
 
 /* `contentReady` is the post-layout re-read every method-based grid adapter
  * (paging, grid state, search-panel text) depends on, and `searchByText` is
