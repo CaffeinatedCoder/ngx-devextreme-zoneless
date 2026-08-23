@@ -267,6 +267,37 @@ interface GridStateLike {
 }
 
 /**
+ * The shared shape of every method-based grid adapter: read and write through
+ * methods, listen for `optionChanged` plus `contentReady`, and accept the
+ * option change only for `optionName` — or for every option when it is
+ * omitted, because any of them may have moved the value.
+ *
+ * It exists for one reason: the event names have to be cast. An adapter
+ * written over a structural type parameter has no `Properties` bag to derive
+ * them from, so `DxAdapterEventName` cannot check them where they are written.
+ * Doing that once leaves a single cast to keep honest rather than one per
+ * capability, and `examples/type-tests.ts` pins `contentReady` against a
+ * concrete grid so a vendor rename still fails CI.
+ */
+function gridMethodAdapter<TInstance extends DxWidget, TValue>(
+    optionName: string | undefined,
+    read: (instance: TInstance) => TValue,
+    write: (instance: TInstance, value: TValue) => void,
+): DxBindingAdapter<TInstance, TValue> {
+    return {
+        events: ['optionChanged', 'contentReady'] as unknown as readonly DxAdapterEventName<
+            TInstance
+        >[],
+        read,
+        write,
+        accept: (eventName, eventArgs) =>
+            (eventName as string) === 'contentReady' ||
+            optionName === undefined ||
+            (eventArgs as DxOptionChangedArgs).name === optionName,
+    };
+}
+
+/**
  * Paging lives under the nested `paging` option (`paging.pageIndex`), which
  * option-name typing deliberately does not cover — this adapter goes through
  * the `pageIndex()` / `pageSize()` methods instead and listens for the nested
@@ -279,19 +310,11 @@ interface GridStateLike {
 function gridPagingAdapter(
     method: 'pageIndex' | 'pageSize',
 ): DxBindingAdapter<DxWidget & GridPagingLike, number> {
-    return {
-        // `optionChanged`/`contentReady` exist on every widget; the cast is
-        // only needed because the structural instance type carries no
-        // `Properties` bag to derive them from.
-        events: ['optionChanged', 'contentReady'] as unknown as readonly DxAdapterEventName<
-            DxWidget & GridPagingLike
-        >[],
-        read: (instance) => instance[method](),
-        write: (instance, value) => void instance[method](value),
-        accept: (eventName, eventArgs) =>
-            (eventName as string) === 'contentReady' ||
-            (eventArgs as DxOptionChangedArgs).name === 'paging',
-    };
+    return gridMethodAdapter<DxWidget & GridPagingLike, number>(
+        'paging',
+        (instance) => instance[method](),
+        (instance, value) => void instance[method](value),
+    );
 }
 
 /** `[(dxPageIndex)]` base shared by the grid-like widgets (zero-based). */
@@ -399,19 +422,14 @@ interface GridSearchLike {
  * `undefined` would quietly put `undefined` in a `string` model.
  */
 function searchPanelTextAdapter(): DxBindingAdapter<DxWidget & GridSearchLike, string> {
-    return {
-        events: ['optionChanged', 'contentReady'] as unknown as readonly DxAdapterEventName<
-            DxWidget & GridSearchLike
-        >[],
-        read: (instance) =>
+    return gridMethodAdapter<DxWidget & GridSearchLike, string>(
+        'searchPanel',
+        (instance) =>
             ((instance.option as (name: string) => unknown)('searchPanel.text') as
                 | string
                 | undefined) ?? '',
-        write: (instance, value) => instance.searchByText(value),
-        accept: (eventName, eventArgs) =>
-            (eventName as string) === 'contentReady' ||
-            (eventArgs as DxOptionChangedArgs).name === 'searchPanel',
-    };
+        (instance, value) => instance.searchByText(value),
+    );
 }
 
 /**
@@ -483,28 +501,24 @@ function gridStateAdapter(): DxBindingAdapter<
     DxWidget & GridStateLike,
     DxGridState | null | undefined
 > {
-    return {
-        // Any option change may affect the persisted state; structural
-        // equality drops the reads that turn out not to. `contentReady` is
-        // listened to as well because a grid only *has* a layout state once
-        // it has rendered: at `initialized` time — when this binding attaches
-        // — `state()` still reports `{}`, and without a post-layout re-read
-        // the signal would keep that empty snapshot forever.
-        events: ['optionChanged', 'contentReady'] as unknown as readonly DxAdapterEventName<
-            DxWidget & GridStateLike
-        >[],
-        read: (instance) => instance.state() as DxGridState,
-        write: (instance, value) => {
-            // The empty snapshot above must never travel back into the
-            // widget: `state({})` wipes the very layout the binding exists to
-            // restore. Only a real state or an explicit `null` (reset) is
-            // written.
+    // No option name: *any* option change may affect the persisted state, and
+    // structural equality drops the reads that turn out not to. `contentReady`
+    // matters here more than anywhere — a grid only *has* a layout state once
+    // it has rendered, so at `initialized` time, when this binding attaches,
+    // `state()` still reports `{}`.
+    return gridMethodAdapter<DxWidget & GridStateLike, DxGridState | null | undefined>(
+        undefined,
+        (instance) => instance.state() as DxGridState,
+        (instance, value) => {
+            // That empty snapshot must never travel back into the widget:
+            // `state({})` wipes the very layout the binding exists to restore.
+            // Only a real state or an explicit `null` (reset) is written.
             if (value !== null && value !== undefined && Object.keys(value).length === 0) {
                 return;
             }
             instance.state(value ?? null);
         },
-    };
+    );
 }
 
 /**

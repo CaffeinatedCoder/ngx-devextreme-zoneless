@@ -141,45 +141,50 @@ function attachPointClickToggle<THost extends DxHostComponent>(
 }
 
 /**
- * `[(dxSelectedPoints)]` for `dx-chart`. Set `pointSelectionMode="multiple"`
- * on the chart to allow more than one selected point. Clicking a point
- * toggles its selection unless `[dxPointClickToggle]="false"`.
+ * `[(dxSelectedPoints)]` base shared by the chart-family widgets — two-way
+ * binds the selected points to a signal as serializable descriptors, and wires
+ * the click-to-toggle behaviour DevExtreme leaves to the consumer.
+ *
+ * Set `pointSelectionMode="multiple"` on a `dx-chart` to allow more than one
+ * selected point. Clicking a point toggles its selection unless
+ * `[dxPointClickToggle]="false"`.
  */
-@Directive({ selector: 'dx-chart[dxSelectedPoints]', exportAs: 'dxSelectedPoints' })
-export class DxChartSelectedPointsDirective extends DxBindingDirectiveBase {
+@Directive()
+export abstract class DxSelectedPointsDirectiveBase<
+    THost extends DxHostComponent<DxWidget & ChartLike>,
+> extends DxBindingDirectiveBase {
     readonly dxSelectedPoints = model.required<readonly DxChartSelectedPoint[]>();
     readonly dxPointClickToggle = input(true);
 
-    constructor() {
+    protected constructor(host: THost) {
         super();
-        const host = inject(DxChartComponent, { self: true });
-        this.bindAdapter<DxChartComponent, readonly DxChartSelectedPoint[]>(
+        this.bindAdapter<THost, readonly DxChartSelectedPoint[]>(
             host,
             this.dxSelectedPoints,
-            chartSelectionAdapter<DxInstanceOf<DxChartComponent>>(),
+            // The `THost` constraint guarantees the instance shape; the cast
+            // bridges TS's inability to prove it for an unresolved parameter.
+            chartSelectionAdapter<DxWidget & ChartLike>() as DxBindingAdapter<
+                DxInstanceOf<THost>,
+                readonly DxChartSelectedPoint[]
+            >,
         );
         attachPointClickToggle(host, this.dxPointClickToggle);
     }
 }
 
-/**
- * `[(dxSelectedPoints)]` for `dx-pie-chart`. Clicking a point toggles its
- * selection unless `[dxPointClickToggle]="false"`.
- */
-@Directive({ selector: 'dx-pie-chart[dxSelectedPoints]', exportAs: 'dxSelectedPoints' })
-export class DxPieChartSelectedPointsDirective extends DxBindingDirectiveBase {
-    readonly dxSelectedPoints = model.required<readonly DxChartSelectedPoint[]>();
-    readonly dxPointClickToggle = input(true);
-
+/** `[(dxSelectedPoints)]` for `dx-chart` — see {@link DxSelectedPointsDirectiveBase}. */
+@Directive({ selector: 'dx-chart[dxSelectedPoints]', exportAs: 'dxSelectedPoints' })
+export class DxChartSelectedPointsDirective extends DxSelectedPointsDirectiveBase<DxChartComponent> {
     constructor() {
-        super();
-        const host = inject(DxPieChartComponent, { self: true });
-        this.bindAdapter<DxPieChartComponent, readonly DxChartSelectedPoint[]>(
-            host,
-            this.dxSelectedPoints,
-            chartSelectionAdapter<DxInstanceOf<DxPieChartComponent>>(),
-        );
-        attachPointClickToggle(host, this.dxPointClickToggle);
+        super(inject(DxChartComponent, { self: true }));
+    }
+}
+
+/** `[(dxSelectedPoints)]` for `dx-pie-chart` — see {@link DxSelectedPointsDirectiveBase}. */
+@Directive({ selector: 'dx-pie-chart[dxSelectedPoints]', exportAs: 'dxSelectedPoints' })
+export class DxPieChartSelectedPointsDirective extends DxSelectedPointsDirectiveBase<DxPieChartComponent> {
+    constructor() {
+        super(inject(DxPieChartComponent, { self: true }));
     }
 }
 

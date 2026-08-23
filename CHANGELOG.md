@@ -72,7 +72,8 @@
   extension idiom the core family bases already offer. Each grid capability is
   now written once and shared by the `dx-data-grid`/`dx-tree-list` directive
   pairs, which also keeps defaults (such as `dxGridStateDebounce`'s 100 ms) in
-  a single place.
+  a single place. `/visualization` exports `DxSelectedPointsDirectiveBase` on
+  the same footing, shared by the `dx-chart`/`dx-pie-chart` pair.
 
 ### Fixed
 
