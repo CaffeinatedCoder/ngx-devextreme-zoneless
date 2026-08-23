@@ -24,8 +24,8 @@ Angular signal  ──effect──▶  widget option / method
 Angular signal  ◀──set────  widget event (optionChanged, selectionChanged, …)
 ```
 
-- **Angular** ≥ 20 (built and verified against Angular 22, zoneless by default)
-- **DevExtreme / devextreme-angular** ≥ 25.1 (built and verified against 26.1)
+- **Angular** ≥ 20 < 23 (built and verified against Angular 22, zoneless by default)
+- **DevExtreme / devextreme-angular** ≥ 26.1 (built and verified against 26.1.4)
 - **TypeScript** 6.0, `strict`, zero `any` in the public surface
 
 > **Why this library exists:** DevExpress officially still requires zone.js.

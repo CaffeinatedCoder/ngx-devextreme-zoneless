@@ -19,7 +19,7 @@ protocol coverage.
 
 ## Stack
 Angular ≥20 <23 (built against 22, zoneless) · DevExtreme / devextreme-angular ≥26.1 (built against
-26.1.3) · TypeScript 6.0 `strict`, zero `any` in the public surface · ng-packagr · Playwright
+26.1.4) · TypeScript 6.0 `strict`, zero `any` in the public surface · ng-packagr · Playwright
 
 ## Structure
 Six secondary entry points, each its own `src/public-api.ts`. The split is load-bearing: it is what

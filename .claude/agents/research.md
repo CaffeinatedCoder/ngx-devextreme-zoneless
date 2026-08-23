@@ -145,7 +145,7 @@ Before researching a version question, read the versions this repo actually buil
 never research one it does not use:
 
 - `package.json` → `peerDependencies` (`@angular/core >=20 <23`, `devextreme`/`devextreme-angular
-  >=26.1`) and `devDependencies` (the pinned build versions — Angular 22.x, DevExtreme 26.1.3,
+  >=26.1`) and `devDependencies` (the pinned build versions — Angular 22.x, DevExtreme 26.1.4,
   TypeScript 6.0.x, Playwright)
 - `node_modules/devextreme/package.json` for the exact installed DevExtreme
 
