@@ -79,6 +79,9 @@ function combineFilters(
                 data-testid="orders-search"
                 placeholder="search customer"
                 (input)="search.set($any($event.target).value)" />
+            <!-- Renders in the same flush that arms the deps debounce timer —
+                 remote.spec.ts waits on it before clicking reload. -->
+            <span class="readout" data-testid="orders-search-echo">{{ search() }}</span>
             <select data-testid="orders-status" (change)="status.set($any($event.target).value || null)">
                 <option value="">all statuses</option>
                 <option>Pending</option>

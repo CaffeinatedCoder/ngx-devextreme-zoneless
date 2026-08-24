@@ -122,17 +122,24 @@ test.describe('external filter signals', () => {
     // A manual reload landing inside the debounce window used to *race* the
     // pending dependency run: the reload fetched, then the debounced run fired
     // anyway with its own page-0 reset, and the grid corrected itself in
-    // between — four round trips, measured, where the dependency change alone
-    // costs one, and the page moved a few hundred milliseconds after the user
+    // between — four round trips, measured, where the adopted path costs at
+    // most two, and the page moved a few hundred milliseconds after the user
     // had already asked for fresh data. `reload()` now adopts the pending
     // change instead: it takes the page-0 reset and drops the timer.
     //
-    // Two requests is the floor here, not one, and the pair is worth naming:
-    // resetting the page and refetching are separate `DataSource` operations,
-    // so a grid sitting on page 1 issues its current-page load (`skip: 10`)
-    // before the page-0 load that carries `requireTotalCount`. Collapsing
-    // those would mean reaching into the widget's own paging controller, which
-    // this store deliberately does not do — it owns a DataSource, not a grid.
+    // Two sequencing facts keep this deterministic, both measured (2026-08-24):
+    // - the debounce timer is armed in the effect flush that follows the
+    //   keystroke, not in the keystroke itself, so the spec waits for the
+    //   search echo — rendered in that same flush — before clicking. A click
+    //   racing the flush finds no timer to adopt and legitimately costs three
+    //   requests even with the adoption working;
+    // - the adopted reload costs one request or two: resetting the page and
+    //   refetching are separate `DataSource` operations, and the grid usually
+    //   interposes its current-page load (`skip: 10`) before the page-0 load
+    //   that carries `requireTotalCount`, but its internal load scheduling can
+    //   collapse the pair into the page-0 load alone (~6ms of click timing
+    //   flipped it, measured). Both shapes are the fix working; three or more
+    //   requests is the race.
     test('a reload inside the debounce window adopts the pending change', async ({
         page,
         request,
@@ -142,19 +149,25 @@ test.describe('external filter signals', () => {
         await stubReset(request);
 
         await readout(page, 'orders-search').fill('acme');
+        // Once the echo shows the keystroke, the flush that arms the debounce
+        // timer has run — the pending run now exists for reload() to adopt.
+        await expect(readout(page, 'orders-search-echo')).toHaveText('acme');
         await readout(page, 'orders-reload').click();
 
         await expect(ordersPagerInfo(page)).toHaveText('Page 1 of 1 (10 items)');
         await expect(readout(page, 'orders-page')).toHaveText('0');
-        await expect
-            .poll(async () => (await stubStats(request)).byPath['/api/orders'])
-            .toBe(2);
-        // ... and the second of those is the page-0 read, not a repeat of the
-        // first — the adopted reset, rather than a duplicated dependency run.
+
+        // The dropped timer can only be proven by outliving it: had the
+        // debounced run survived the adoption, it would fire ~300ms after the
+        // keystroke's flush and add its own requests beyond the adopted pair.
+        await page.waitForTimeout(500);
         const sent = (await stubStats(request)).history
             .filter((entry) => entry.path === '/api/orders')
             .map((entry) => entry['skip']);
-        expect(sent).toEqual([10, 0]);
+        // The last request is the page-0 read — the adopted reset, not a
+        // duplicated dependency run — optionally preceded by the grid's
+        // transitional current-page load.
+        expect([[0], [10, 0]]).toContainEqual(sent);
     });
 
     test('debounce collapses keystrokes into a single request', async ({ page, request }) => {

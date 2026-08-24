@@ -302,12 +302,14 @@ export function dxRemoteStore<TItem, TKey = unknown>(
         // A dependency change still inside the debounce window describes the
         // very refetch this call is asking for, so adopt it rather than race
         // it: take the page-0 reset it implies and drop its timer. Racing was
-        // measured at four round trips against two on the same path, and moved
-        // the page out from under the user a few hundred milliseconds after
-        // they had already asked for fresh data. Two is the floor, not one:
-        // resetting the page and refetching are separate `DataSource`
-        // operations, so a widget sitting off page 0 issues its current-page
-        // load before the page-0 one.
+        // measured at four round trips against at most two on the same path,
+        // and moved the page out from under the user a few hundred
+        // milliseconds after they had already asked for fresh data. The
+        // adopted path costs one round trip or two: resetting the page and
+        // refetching are separate `DataSource` operations, and a widget
+        // sitting off page 0 usually interposes its current-page load before
+        // the page-0 one — though its internal load scheduling can collapse
+        // the pair into the page-0 load alone (measured both ways, 26.1.4).
         if (cancelPendingDepsRun?.() === true) {
             dataSource.pageIndex(0);
         }
