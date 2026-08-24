@@ -269,8 +269,10 @@ implementation. These facts are pinned **by measurement**, not by vendor documen
   against 5.1.0 metadata), so a remote hierarchy is a contract between the widget and the consumer's
   endpoint. The client's only job is not to drop what the widget produced
 - **Widget search folds into `filter` via `useDefaultSearch`** — `searchExpr`/`searchOperation`/
-  `searchValue` are never sent as their own params, matching the vendor client. `expand`,
-  `customQueryParams` (ODataStore) and `startDate`/`endDate` (Scheduler) are out of scope by kind
+  `searchValue` are never sent as their own params, matching the vendor client — but the folding is
+  off by default on a bare `CustomStore`; `dxRemoteStore` opts in. `expand`/`customQueryParams`
+  (ODataStore) are out of scope by kind, and `startDate`/`endDate` are dead typings no widget
+  populates — the Scheduler folds its visible range into `filter`
 
 **Tests**
 

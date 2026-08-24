@@ -36,6 +36,105 @@ constructor() {
 The target can also be a callback (`dxReloadOn(() => this.grid()?.refresh(), [deps])`)
 for anything that is not a `DataSource`.
 
+## The ecosystem: who does what
+
+A DevExtreme widget never fetches data itself. When a grid needs page two,
+filtered and sorted, it writes that request down as a plain object — the
+**loadOptions**: rows to skip and take, the filter, the sort order, grouping,
+summaries — and hands it to its data source. Everything called "remote data"
+is the story of who turns that object into an HTTP request and who executes
+it. Four things have to be in place before the server does the heavy lifting,
+and no single package provides all four:
+
+1. **The widget must be told to delegate.** That is `remoteOperations`
+   (`[remoteOperations]="true"` or a per-operation object). The default,
+   `'auto'`, resolves to *all local* for a custom store: the widget fetches
+   everything once and pages, filters and sorts in the browser — fine for
+   hundreds of rows, wrong for a million.
+2. **A store that hands loadOptions through** instead of executing them
+   locally.
+3. **A serializer** that turns the loadOptions object into query parameters a
+   server can read.
+4. **A server that executes them** and answers in the shape the widget
+   expects: `{ data, totalCount, groupCount, summary }`, a collapsed group as
+   `{ key, items: null, count }`.
+
+### What devextreme and devextreme-angular bring
+
+`devextreme-angular` is the component layer only; it contributes nothing to
+data loading. The data layer lives in the `devextreme` core package:
+
+- **`ArrayStore`** — in-memory data, no server involved;
+- **`ODataStore`** — a complete client for OData services, but its query
+  builder has no spelling for grouping, group paging or summaries (verified
+  against the installed 26.1.4 source), so those always run in the browser.
+  The full `remoteOperations` matrix rides loadOptions only;
+- **`CustomStore`** — the raw seam: you write the `load` function, DevExtreme
+  passes you the loadOptions object, and everything after that is yours.
+
+So out of the box you get layer 1 and the *hook* for layer 2 — no serializer,
+no server, no loading or error state you can render outside the widget, and
+nothing signal-aware.
+
+### When you need DevExtreme.AspNet.Data
+
+The vendor's answer to layers 3 and 4 is one project with two halves:
+
+- **The server half** — the `DevExtreme.AspNet.Data` NuGet package.
+  `DataSourceLoader.Load(queryable, loadOptions)` applies filter, sort,
+  paging, grouping and summaries to an `IQueryable`, so Entity Framework
+  translates them into SQL. Use it (or a counterpart for another stack — PHP
+  and MongoDB ones exist) whenever the server should execute the operations
+  rather than each endpoint hand-writing them. The protocol is the contract,
+  not the package: any endpoint that reads the same parameters and answers
+  the same shape works — this repo's e2e stub (`e2e/stub-server.mjs`) is one.
+- **The client half** — the `devextreme-aspnet-data` npm package.
+  `createStore({ loadUrl, insertUrl, … })` is a prebuilt `CustomStore` that
+  serializes, sends and parses for you. It predates signals and owns the HTTP
+  call: it never reads an `AbortSignal` (its transport is `XMLHttpRequest`,
+  so superseded requests cannot be cancelled), exposes no loading or error
+  state to your templates, and offers no hook to repair a response envelope.
+  Where it still earns its place is **editing**: `insertUrl`/`updateUrl`/
+  `deleteUrl` have no counterpart here (see
+  [Scope](#scope-load-only-by-design)).
+
+### Where this package fits
+
+`dxRemoteStore` + `dxLoadOptionsParams` are the client half rebuilt for
+signals and zoneless change detection, for read paths: the same query-string
+format through your own `fetch` (auth headers, interceptors and the
+`AbortSignal` stay in your hands), `isLoading`/`error`/`reload()` as signals,
+last-write-wins cancellation, dependency-driven reloads, `byKey` for lookup
+editors, and count coercion for servers that spell numbers as strings. The
+server side stays whatever conformant endpoint you already have.
+
+### The protocol's edges — measured, not assumed
+
+The loadOptions object is wider than what any server parses. The table below
+is measured, not quoted from documentation: the client side against the
+installed devextreme 26.1.4, the server side against DevExtreme.AspNet.Data's
+source at 5.2.0 — whose parser is byte-identical since 5.0.0 and binds
+exactly eleven keys.
+
+| Member | Does the client send it? | Reference server | Consequence |
+|---|---|---|---|
+| `filter`, `sort`, `group`, `select`, `skip`, `take`, `requireTotalCount`, `requireGroupCount`, `totalSummary`, `groupSummary` | yes, as each remote operation needs them | parses all ten | the paved road — nothing to do |
+| `parentIds` (TreeList hierarchy) | yes — plus an equivalent `filter` on the parent-id field | ignores it, in every 5.x; the vendor's own demos read it by hand in the controller | remote hierarchy is a contract between the widget and *your* endpoint; `dxLoadOptionsParams` carries it so the choice stays yours |
+| `langParams` (sort and filter text the way the user's locale does) | only when filtering *and* sorting are both remote; absent from the public typings | ignores it | your endpoint decides collation; `dxLoadOptionsParams` carries it (see [below](#language-sensitive-sorting)) |
+| `searchValue` / `searchExpr` / `searchOperation` | normally never — search is folded into `filter` before your `load` runs | ignores them | `dxRemoteStore` opts into the folding (`useDefaultSearch`), matching the vendor client. A hand-rolled `CustomStore` without `useDefaultSearch: true` receives all three raw — and no server parses them |
+| `startDate` / `endDate` (Scheduler) | never — they exist in the typings only; the Scheduler folds its visible range into `filter` | ignores them | nothing to do |
+| `userData` | attached to every load, but permanently `{}` in 26.1.4 — no public API fills it | ignores it | nothing to do; not serialized |
+| `isLoadingAll` | only on "load everything" operations (export-all) | ignores it | a hint, safe to drop; not serialized |
+| `expand`, `customQueryParams` | never to a custom store — ODataStore-only | — | a different protocol |
+
+The asymmetry runs both ways: the reference server also parses an
+`isCountQuery` key the JavaScript client never sends. And on the way back,
+some conformant servers spell `totalCount`/`groupCount` as quoted strings
+(`"120"`) where the .NET reference answers plain numbers — `dxRemoteStore`
+coerces the counts when they parse as numbers and deliberately leaves
+`summary` values untouched, because a summary may legitimately be a `min`
+over a string or date column.
+
 ## Remote data (`dxRemoteStore`) <sup>developer preview in 2.1</sup>
 
 For server-side loading, `dxRemoteStore` wraps a load function in a

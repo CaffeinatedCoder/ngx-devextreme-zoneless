@@ -22,7 +22,7 @@ and supports no summaries at all.
 ## Facts pinned by measurement
 
 Each of these was established by driving a real widget and reading the wire, not from vendor
-documentation — which is silent or wrong on all four.
+documentation — which is silent or wrong on every one of them.
 
 - **Counts and summaries may arrive as quoted JSON strings.** Reference implementations aggregate
   into a decimal and spell a decimal as a string, so a conformant endpoint answers `"120"` where
@@ -56,6 +56,13 @@ documentation — which is silent or wrong on all four.
   `TotalSummary` and the rest are all present). A remote hierarchy is therefore a contract between
   the widget and the consumer's endpoint; the client's only job is not to drop what the widget
   produced
+- **The reference .NET parser binds exactly eleven keys, unchanged across all of 5.x.** Verified
+  against source at tag 5.2.0, byte-identical since 5.0.0 (2026-08-24 audit): `requireTotalCount`,
+  `requireGroupCount`, `isCountQuery`, `skip`, `take`, `sort`, `group`, `filter`, `totalSummary`,
+  `groupSummary`, `select` — nothing else. `langParams`, `userData` and the raw search triple are
+  ignored alongside `parentIds`; everything else on `DataSourceLoadOptionsBase` (`StringToLower`,
+  `PaginateViaPrimaryKey`, …) is a controller-side knob, never a wire key. The asymmetry runs both
+  ways: `isCountQuery` is parsed but never sent by the JavaScript client
 
 ## Serializer scope
 
@@ -72,7 +79,9 @@ builds internally, so the store now surfaces a `langParams` option too. The grid
 remote payload only when filtering **and** sorting are both remote — with either local it is spliced
 out before the store is called — and the grid's default `remoteOperations: 'auto'` resolves to
 all-local for a custom store, which strips it. Pinned by rendered row order, not only by `__stats`:
-the stub collates with it, so a client that drops it produces visibly different output.
+the stub collates with it, so a client that drops it produces visibly different output. The
+reference .NET server ignores it in every 5.x, so collation — like hierarchy — is a
+widget↔endpoint contract; the stub honouring it is the conformance case, not the norm.
 
 Deliberately absent, and why:
 
@@ -82,9 +91,17 @@ Deliberately absent, and why:
 
 - `searchExpr` / `searchOperation` / `searchValue` — folded into `filter` by `useDefaultSearch: true`
   on the store, matching the vendor client, so the load function only ever deals in filter
-  expressions
-- `expand`, `customQueryParams` — ODataStore only
-- `startDate`, `endDate` — Scheduler only
+  expressions. The folding is opt-in and a bare `CustomStore` defaults it **off**
+  (`m_custom_store.js`, 26.1.4) — with it off the three ride raw as separate members, which no
+  server parses. `dxRemoteStore` sets it, and that opt-in is what makes this absence safe
+- `expand`, `customQueryParams` — ODataStore only: injected via its `_customLoadOptions()`, which a
+  `CustomStore` does not declare, so they can never reach this serializer
+- `startDate`, `endDate` — dead typings, not "Scheduler only": no widget ever populates them. The
+  Scheduler folds its visible range into an ordinary `filter` (`scheduler.js` →
+  `dataSource.filter(filter)`, 26.1.4), so remote Scheduler filtering needs nothing beyond `filter`
+- `userData` — reaches every load but is permanently `{}` in 26.1.4: `DataSource._init` writes it
+  once, `_createStoreLoadOptions` attaches it every time, and no public setter exists. Serializing
+  an always-empty object would be noise — and the reference server ignores it anyway
 
 `sort` and `group` entries that are already objects pass through **untouched**, which is what keeps
 `groupInterval` and `isExpanded` on a group descriptor alive. Only bare-string entries get normalized
