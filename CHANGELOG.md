@@ -231,6 +231,22 @@
   "most recent settled load", which is not what the implementation guarantees
   — the implementation semantic is the intended one and is now documented.
 
+### Docs
+
+- **The README was split into a short front page plus `docs/`.** Quick start,
+  the new binding-style chooser, entry points and a documentation table stay in
+  the README; the directive catalog, Signal Forms, composition API, remote
+  data, semantics and development guides each got their own page. README links
+  into `docs/` are absolute GitHub URLs because the npm tarball ships only the
+  README.
+- **A binding-style comparison** (`docs/binding-styles.md`, live at `/compare`
+  in the smoke app): the same field as classic Reactive Forms, `[(dxValue)]`,
+  and `[formField]` + `[dxFieldState]`, side by side. Building it produced a
+  measured correction: classic reactive-forms *field* state reaches a zoneless
+  template on its own (the forms directives mark for check on value/status
+  changes — pinned by e2e); what zone.js actually hides is the non-CVA widget
+  state this package covers.
+
 ### Changed
 
 - **Trademark attribution is now the first thing a reader meets.** The notice

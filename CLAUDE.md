@@ -171,8 +171,12 @@ Guidance is tiered by loading cost — this file holds only what must be residen
 a moved block leaves a pointer, never a copy.
 
 ## Docs
-- `README.md` — the consumer-facing contract, written *from* `smoke/src/*.component.ts`. A directive
-  that is not in its table does not exist as far as users are concerned
+- `README.md` + `docs/` — the consumer-facing contract, written *from* `smoke/src/*.component.ts`.
+  The README is the short front page (ValueRanges-style: quick start, binding-style chooser, entry
+  points, a Documentation table); the depth lives in `docs/*.md`. The directive tables are in
+  `docs/directives.md` — a directive not in them does not exist as far as users are concerned.
+  README links into `docs/` are **absolute GitHub URLs** because `docs/` does not ship in the npm
+  tarball and relative links would 404 on npmjs.com
 - `CHANGELOG.md` — every release. Breaking changes get their own section and say what a consumer has
   to change, not merely what moved
 - `NEXT-STEPS.md` — the working queue: what is open, what was verified, and the findings worth

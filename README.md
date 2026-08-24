@@ -80,519 +80,52 @@ Or import everything at once with `DX_SIGNAL_DIRECTIVES` (also available per
 family: `DX_VALUE_DIRECTIVES`, `DX_NAVIGATION_DIRECTIVES`,
 `DX_VISIBLE_DIRECTIVES`, `DX_DATA_DIRECTIVES`, `DX_VISUALIZATION_DIRECTIVES`).
 
-Components without a dedicated directive (PivotGrid, Sortable, Menu, …) are
-covered too — see [Composition API](#composition-api): the same engine works
-with **any** option and event of **any** DevExtreme component, fully typed.
-
-## Directive catalog
-
-### Editors — `[(dxValue)]`
-
-Every value editor gets a `[(dxValue)]` two-way model plus `dxValueDebounce`
-(ms, widget → signal direction) and `dxValueEqual` (custom comparer) inputs.
-
-| Component | Model type |
-|---|---|
-| `dx-text-box`, `dx-text-area`, `dx-html-editor` | `string` |
-| `dx-number-box` | `number \| null` |
-| `dx-check-box` | `boolean \| null` |
-| `dx-switch` | `boolean` |
-| `dx-date-box` | `Date \| number \| string \| null` |
-| `dx-date-range-box` | `readonly [start: DxDateValue \| null, end: DxDateValue \| null]` |
-| `dx-calendar` | `DxDateValue \| readonly DxDateValue[] \| null` |
-| `dx-color-box`, `dx-autocomplete` | `string \| null` |
-| `dx-slider` | `number` |
-| `dx-range-slider` | `readonly [start: number, end: number]` |
-| `dx-select-box`, `dx-lookup`, `dx-drop-down-box`, `dx-radio-group` | generic `TValue` — inferred from your signal |
-| `dx-tag-box` | generic `readonly TKey[]` |
-| `dx-filter-builder` | `DxFilterExpression \| null` |
-| `dx-range-selector` | DevExtreme's declared scale range type |
-
-Where DevExtreme declares `value?: any` (SelectBox & friends) the directive is
-**generic** instead, so `[(dxValue)]="status"` with a
-`signal<OrderStatus | null>` is checked end-to-end.
-
-### Selection & data
-
-| Selector | Model |
-|---|---|
-| `dx-data-grid[dxSelectedRowKeys]`, `dx-tree-list[dxSelectedRowKeys]` | `readonly TKey[]` |
-| `dx-list[dxSelectedItemKeys]` | `readonly TKey[]` |
-| `dx-tree-view[dxSelectedNodeKeys]` | `readonly TKey[]` (method-based: `getSelectedNodeKeys` / `selectItem`) |
-| `dx-gantt[dxSelectedRowKey]` | `TKey \| null` |
-| `dx-scheduler[dxCurrentDate]` | `Date \| number \| string` |
-| `dx-scheduler[dxCurrentView]` | DevExtreme's view union |
-| `dx-form[dxFormData]` | generic `TFormData` — emits a fresh value per field edit; the widget never shares the signal's object |
-
-### Grid state (dx-data-grid and dx-tree-list)
-
-| Selector | Model |
-|---|---|
-| `[dxFocusedRowKey]` | `TKey \| null` (requires `focusedRowEnabled`; `null` clears) |
-| `[dxFilterValue]` | `DxFilterExpression \| null` |
-| `[dxPageIndex]`, `[dxPageSize]` | `number` (method-based — paging lives under the nested `paging` option) |
-| `[dxGridState]` | `DxGridState \| null \| undefined` — the full layout state (`state()` / `stateStoring`) |
-| `[dxSearchPanelText]` | `string` — the search panel's phrase (method-based: `searchByText`) |
-| `dx-tree-list[dxExpandedRowKeys]` | `readonly TKey[]` — the expanded rows (**`dx-tree-list` only**) |
-
-`[(dxExpandedRowKeys)]` is the expansion-state binding for hierarchies — bind
-it to a signal you persist and a restored tree comes back opened the way the
-user left it. The signal holds the *complete* set, so writing a new array both
-expands and collapses to match, and `[]` collapses everything. It is
-`dx-tree-list` only: `dx-data-grid` declares no such option, and its *group*
-expansion is reachable through `expandRow`/`collapseAll` methods instead.
-
-`[(dxSearchPanelText)]` puts the grid's built-in search box on a signal, so
-the widget's own search can drive query state that lives outside it — pair it
-with `dxRemoteStore({ deps: [search] })` and the search panel becomes a
-server-side search without an external input. Widget → signal reads are
-debounced via `dxSearchPanelTextDebounce` (default 0), independently of the
-widget's own `searchPanel` timeout.
-
-`[(dxGridState)]` is the layout-persistence story: bind it to a signal you
-persist wherever you like. `undefined` pulls the current state once the grid
-has rendered (a grid has no layout state before that), a saved state object
-restores the layout, `null` resets to defaults. Widget → signal reads are
-debounced (`dxGridStateDebounce`, default 100 ms).
-
-### Navigation & overlays
-
-| Selector | Model |
-|---|---|
-| `dx-tabs`, `dx-tab-panel`, `dx-accordion`, `dx-gallery` + `[dxSelectedIndex]` | `number` |
-| `dx-drawer[dxOpened]` | `boolean` |
-| `dx-popup`, `dx-popover`, `dx-tooltip`, `dx-toast`, `dx-load-panel`, `dx-action-sheet` + `[dxVisible]` | `boolean` |
-
-`[(dxVisible)]` tracks *every* way an overlay can close (shading click, escape,
-close button, API) — the classic zoneless pain point.
-
-### Visualization
-
-| Selector | Model |
-|---|---|
-| `dx-chart[dxSelectedPoints]`, `dx-pie-chart[dxSelectedPoints]` | `readonly DxChartSelectedPoint[]` |
-
-Chart selection is method-based; selected points are exposed as serializable
-`{ seriesName, argument, value }` descriptors that can be stored and restored.
-DevExtreme charts do not select points on click by themselves (their demos
-wire `onPointClick: e => e.target.select()` manually), so these directives
-toggle the clicked point's selection by default — opt out with
-`[dxPointClickToggle]="false"` if you want to handle `onPointClick` yourself.
-
-### Signal Forms — `[dxFieldState]`
-
-<sup>Requires `@angular/forms` (an optional peer). Import from
-`ngx-devextreme-zoneless/forms`, which is **not** re-exported by the main entry
-point — that is what keeps `@angular/forms` optional for everyone else.</sup>
-
-Angular's `[formField]` already works on a DevExtreme editor, and this package
-deliberately does not reimplement it: every editor registers its own
-`NG_VALUE_ACCESSOR`, and `[formField]` resolves a registered
-`ControlValueAccessor` ahead of anything else on the element. Value, `touched`
-and `disabled` therefore cross on their own — measured, and pinned by
-`e2e/forms.spec.ts`.
-
-What does *not* cross is everything a `ControlValueAccessor` has no hook for.
-`[dxFieldState]` writes that into the widget's own validation UI:
-
-| Field state | Reaches the widget via | Notes |
-|---|---|---|
-| `value` (both directions) | the vendor CVA | on the widget's `valueChangeEvent`, which defaults to `change` (i.e. blur) |
-| `touched` | the vendor CVA | on blur |
-| `disabled` | the vendor CVA | `setDisabledState` → `dx-state-disabled` |
-| `readonly` | **`[dxFieldState]`** | → the widget's `readOnly` option |
-| `hidden` | **`[dxFieldState]`** | → the widget's `visible` option (`dx-state-invisible`) |
-| `errors` | **`[dxFieldState]`** | → `isValid` + `validationErrors`, rendered by the widget's native message UI |
-| `pending` | **`[dxFieldState]`** | → `validationStatus: 'pending'` for async validators |
-| `required` | *nowhere* | DevExtreme has no editor-level `required` option — see below |
-| `dirty` | *nowhere* | the editor owns its `isDirty` flag and no-ops external writes — see below |
-
-```html
-<dx-text-box
-    [formField]="$any(profile.email)"
-    [dxFieldState]="profile.email"
-/>
-```
-
-**Why the field is named twice, and why `$any()`.** Angular synthesises one
-input assignment per name from a fixed list of 17 (`maxLength`, `min`, `max`,
-`readonly`, `required`, …) onto whichever of those names a form-control host
-declares. DevExtreme's generated wrappers collide by name with incompatible
-types, so `[formField]` fails `strictTemplates` on nine editor families — a
-false positive, since nothing is written to those properties on a non-native
-host, but not one a consumer can suppress. A directive of ours *could* suppress
-it by claiming the `formField` binding, and must not: the runtime instruction
-that makes `[formField]` work at all is keyed on the same condition, so claiming
-the name silently disables the value binding along with the spurious error.
-
-Passing the field to `[dxFieldState]` is what buys the type safety back. It is
-typed to each family's real value type — the same types as `[(dxValue)]` above —
-so a mismatched field is a compile error at that binding even though
-`[formField]` was cast away:
-
-```html
-<!-- compile error: a string field cannot drive a number box -->
-<dx-number-box [formField]="$any(profile.name)" [dxFieldState]="profile.name" />
-```
-
-The one mistake typing cannot catch is the two bindings naming *different*
-fields — value flowing to one while another field's errors render over it. In
-dev mode the directive injects Angular's `FORM_FIELD` token and throws when the
-bindings disagree; field trees are per-node cached proxies, so the identity
-check is exact.
-
-**The schema owns what the directive writes.** While `[dxFieldState]` is
-attached it writes `readOnly`, `visible`, `isValid`, `validationStatus` and
-`validationErrors` from the field's state — do not also bind any of those on
-the element, or the two writers will fight.
-
-**Errors wait for blur by default.** `dxFieldStateShowErrors` is `'touched'`
-unless you set it to `'always'`, so a pristine form does not render every
-`required` rule as an error on load.
-
-**`required` is not mirrored, and that is a vendor limit rather than an
-omission.** No DevExtreme editor declares a `required` option (checked against
-26.1.4). The vendor's own mechanisms are `dxValidator` setting `aria-required`
-as a side effect of having a `RequiredRule` configured, and `dxForm`'s
-item-level `isRequired` drawing an asterisk on the *label*, which exists only
-inside a Form. A required field surfaces here the way every other rule does:
-through the error it raises when violated.
-
-**`hidden` keeps the widget in the DOM, and Angular will say so.** The
-directive maps `hidden()` to the widget's `visible: false` — `dx-state-invisible`
-on the root — which keeps the widget warm (its state, its element) where `@if`
-would destroy and re-create it. Angular's own preference is `@if`, and its
-dev-only `NG01916` warning fires whenever a bound field is hidden while
-rendered, because `FormField` cannot see the widget-level hiding. Both patterns
-are legitimate: reach for `@if` when you do not need the widget kept warm, and
-accept the advisory when you do — the mirrored `visible: false` makes the
-situation the warning worries about safe, since the hidden widget cannot be
-interacted with.
-
-**`dirty` is not mirrored either, for the opposite reason: the widget owns the
-flag.** Editors do declare `isDirty`, but the widget's `_optionChanged`
-explicitly no-ops on it, nothing renders it, and the editor overwrites it on
-every value change by comparing against its own initial value (verified against
-26.1.4). An external write would have no visible effect and would be clobbered
-by the next keystroke.
-
-Available on all 18 editor families that carry DevExtreme's `Editor` validation
-surface. `dx-filter-builder` is excluded — it extends `WidgetOptions`, not
-`EditorOptions`, and has none of these options.
-
-**One owner for the value.** Do not put `[(dxValue)]` and `[formField]` on the
-same editor — they are two writers of the same option. Angular 22.1.3 added a
-diagnostic that reports forbidden two-way bindings on an element where
-`FormField` is applied, so this is now diagnosed rather than merely discouraged.
-Use `[(dxValue)]` outside Signal Forms, and `[formField]` + `[dxFieldState]`
-inside them.
-
-**Debounce ownership.** The widget's `valueChangeEvent` sits *upstream* of
-Signal Forms' `debounce()`: with the default `change`, the model is only updated
-on blur, so there is nothing left to debounce. Set
-`valueChangeEvent="input"` on the editor and let Signal Forms own the debounce
-policy — do not also reach for `dxValueDebounce`, which belongs to the
-`[(dxValue)]` path, not this one.
-
-## Composition API
-
-The directives are sugar. The same engine is available as injection-context
-functions and covers **every option and event of every DevExtreme component**,
-fully typed:
-
-```ts
-import {
-  bindDxOption, dxOptionSignal, dxEventSignal, injectDxInstance,
-} from 'ngx-devextreme-zoneless';
-
-@Component({ /* ... */ })
-export class MyComponent {
-  // On the same element (inside a directive):
-  private readonly textBox = inject(DxTextBoxComponent, { self: true });
-
-  // Two-way signal for any option — names & types from DevExtreme Properties:
-  readonly placeholder = dxOptionSignal(this.textBox, 'placeholder');
-  readonly mode = dxOptionSignal(this.textBox, 'mode', { initialValue: 'search' });
-
-  // Latest payload of any widget event:
-  readonly focusOut = dxEventSignal(this.textBox, 'focusOut');
-
-  // Works with view children too (pass the viewChild signal itself):
-  private readonly grid = viewChild(DxDataGridComponent<Order, number>);
-  readonly filter = dxOptionSignal(this.grid, 'filterValue');
-
-  // Bind an existing signal to an option:
-  readonly keys = signal<number[] | undefined>([]);
-  constructor() {
-    bindDxOption(this.grid, 'selectedRowKeys', this.keys);
-  }
-
-  // The raw widget instance as a signal (undefined until created):
-  readonly widget = injectDxInstance(DxTextBoxComponent);
-
-  // Same, but for a view child — resets to undefined while the widget is
-  // gone and follows re-creation:
-  readonly gridWidget = dxInstanceSignal(this.grid);
-}
-```
-
-### Widget re-creation
-
-Composition-API bindings on a **getter host reference** (a `viewChild(...)`
-signal) survive widget re-creation: when an `@if`, a tab panel or re-created
-popup content destroys the widget and later creates a new one, the binding
-re-attaches automatically and the initial synchronization runs again — a
-signal holding state therefore **restores it into the new widget**. The
-attribute directives don't need any of this; they die and are re-created with
-their element.
-
-`onDxWidgetReady` is the underlying primitive: it fires once per widget
-instance, and its callback may return a cleanup that runs when the widget
-goes away.
-
-### Components without a dedicated directive
-
-The coverage model is simple: **a directive exists wherever a widget has
-genuine user-mutable two-way state** (value, selection, visibility, index,
-current date/view, form data, chart points). Every other component — and any
-component DevExtreme ships in the future — is still fully supported through
-the composition API, because `dxOptionSignal`, `dxEventSignal` and
-`bindDxOption` are not written against a component list: their option names,
-option value types and event payloads are computed from the `Properties`
-declaration of whatever host component you hand them. Support doesn't
-cliff-edge at the directive catalog; it just gets one notch less sugary.
-
-A few real-world cases:
-
-```ts
-// PivotGrid — no two-way options (its mutable state lives in the
-// PivotGridDataSource), but every event and option is reachable, typed:
-private readonly pivot = inject(DxPivotGridComponent, { self: true });
-readonly cellClick = dxEventSignal(this.pivot, 'cellClick');
-readonly contextMenu = dxEventSignal(this.pivot, 'contextMenuPreparing');
-```
-
-```ts
-// Scheduler beyond [(dxCurrentDate)] / [(dxCurrentView)] — appointment
-// lifecycle as signals:
-private readonly scheduler = inject(DxSchedulerComponent, { self: true });
-readonly appointmentAdded = dxEventSignal(this.scheduler, 'appointmentAdded');
-```
-
-```ts
-// Sortable (e.g. a Kanban board built from dx-sortable + lists) — purely
-// event-driven, so state stays in your signals and events drive mutations:
-private readonly sortable = viewChild(DxSortableComponent);
-readonly reorder = dxEventSignal(this.sortable, 'reorder');
-constructor() {
-  effect(() => {
-    const e = this.reorder();
-    if (e) this.cards.update((cards) => moveItem(cards, e.fromIndex, e.toIndex));
-  });
-}
-```
-
-```ts
-// Any option of any widget, two-way — e.g. Menu, ButtonGroup, Toolbar, ...:
-readonly disabled = dxOptionSignal(this.menu, 'disabled');
-```
-
-For state that is neither an option nor a single event (method-based APIs),
-implement a `DxBindingAdapter` and pass it to `bindDxState` — that is exactly
-how the chart-selection and tree-view directives are built. If the widget may
-normalize or partially reject what your `write` hands it (the tree view
-silently skips unknown keys, editors clamp), set `reReadAfterWrite: true` and
-the signal converges to what the widget actually accepted. And if you want
-template sugar for a component we don't cover, a custom directive is ~10
-lines by extending `DxValueDirectiveBase`, `DxVisibleDirectiveBase`, or the
-grid bases exported from `/data`.
-
-## Data loading (signals → DataSource)
-
-Two-way state is one half of the zoneless problem; the other half is data
-loading — DevExtreme components load through `DataSource`/stores, which know
-nothing about signals.
-
-**Array data in a signal** — `dxArrayStoreSource` wraps a
-`Signal<readonly T[]>` in a `DataSource` that reloads whenever the signal
-changes:
-
-```ts
-readonly orders = signal<readonly Order[]>([]);
-readonly ordersSource = dxArrayStoreSource(this.orders, { key: 'id' });
-// <dx-data-grid [dataSource]="ordersSource" />
-```
-
-**Remote data with signal-driven filters** — `dxReloadOn` triggers a reload
-whenever dependency signals change, so external filter state needs no
-hand-written `refresh()` plumbing:
-
-```ts
-readonly search = signal('');
-
-// e.g. a DevExtreme.AspNet.Data endpoint:
-readonly source = new DataSource({
-  store: createStore({ loadUrl: '/api/orders', key: 'id' }),
-});
-
-constructor() {
-  dxReloadOn(this.source, [this.search]);
-}
-```
-
-The target can also be a callback (`dxReloadOn(() => this.grid()?.refresh(), [deps])`)
-for anything that is not a `DataSource`.
-
-## Remote data (`dxRemoteStore`) <sup>developer preview in 2.1</sup>
-
-For server-side loading, `dxRemoteStore` wraps a load function in a
-`DataSource` and exposes the loading state the widget cannot show for you,
-using Angular `resource()` vocabulary — no third dialect. This section is
-written from the reference screens in `smoke/src/remote.component.ts`, which
-run in CI against a DevExtreme.AspNet.Data protocol stub
-(`e2e/stub-server.mjs`) including slow- and failing-endpoint cases.
-
-```ts
-readonly search = signal('');
-readonly status = signal<string | null>(null);
-
-readonly orders = dxRemoteStore<Order, number>({
-  key: 'id',
-  deps: [this.search, this.status],   // query state living outside the widget
-  debounce: 300,                      // for keystroke-fed dependency signals
-  load: async (options, signal) => {
-    // options: DevExtreme LoadOptions (filter/sort/skip/take/…) from the widget;
-    // merge your external filter signals and go to the server:
-    const filter = combineFilters(options.filter, myExternalFilter());
-    const response = await fetch(`/api/orders?${dxLoadOptionsParams({ ...options, filter })}`, { signal });
-    if (!response.ok) throw new Error(`orders failed: ${response.status}`);
-    return response.json(); // { data, totalCount } — or a plain array
-  },
-});
-```
-
-```html
-<dx-data-grid [dataSource]="orders.dataSource" [remoteOperations]="true">…</dx-data-grid>
-@if (orders.isLoading()) { <app-spinner /> }
-@if (orders.error(); as error) { <button (click)="orders.reload()">retry</button> }
-```
-
-`dxLoadOptionsParams` serializes `LoadOptions` into the exact query-string
-format DevExtreme.AspNet.Data server libraries parse (JSON-encoded
-`filter`/`sort`/`group`/`select`/summaries, plain `skip`/`take`/
-`requireTotalCount`/`requireGroupCount`) — the same wire format the vendor's
-`createStore({ loadUrl })` produces, but through your own `fetch`, so auth
-headers, interceptors and `AbortSignal` stay in your hands.
-
-**The contract**, aligned with `resource()` and verified by e2e:
-
-- **Cancellation, last write wins.** Every load receives an `AbortSignal`. A
-  reload — dependency-driven or manual — aborts whatever is in flight;
-  superseded loads never overwrite newer results, never surface stale errors,
-  and never trigger the widget's load-error UI.
-- **`error` + retry.** `error` holds the rejection of the most recent settled
-  load and is cleared by the next successful one; `reload()` is the retry.
-  The widget additionally shows its own load-error row — `error` is for UI
-  outside the widget.
-- **Page ownership.** A dependency change is a new query, so the store resets
-  to page 0 (mirroring `DataSource.filter()` semantics). Manual `reload()`
-  refetches the same query and keeps the page. You never manage `pageIndex`
-  yourself — and a bound `[(dxPageIndex)]` signal follows both cases.
-- **Debounce ownership.** The `debounce` option applies to dependency-driven
-  reloads only (type-ahead filter signals). Widget-driven search (a lookup's
-  `searchTimeout`) is already debounced by the widget — don't stack a second
-  debounce on the same keystrokes.
-- **Search folds into `filter`.** Widget search options are merged into
-  `LoadOptions.filter` before `load` runs (vendor-parity `useDefaultSearch`),
-  so your load function only ever deals in filter expressions.
-
-**Dependent queries** — a master grid's selection signal drives the detail
-store; return an empty result to skip the request entirely:
-
-```ts
-readonly detailOrders = dxRemoteStore<Order, number>({
-  key: 'id',
-  deps: [this.selectedCustomerId],
-  load: async (options, signal) => {
-    const customerId = untracked(this.selectedCustomerId);
-    if (customerId === undefined) return { data: [], totalCount: 0 };
-    const filter = combineFilters(options.filter, ['customerId', '=', customerId]);
-    return fetchJson(`/api/orders?${dxLoadOptionsParams({ ...options, filter })}`, signal);
-  },
-});
-```
-
-**Lookup editors need `byKey`** — a select box showing a programmatically set
-value must resolve the item behind the key before any page is loaded. Against
-a loadOptions endpoint, `byKey` is a filtered load:
-
-```ts
-readonly customerLookup = dxRemoteStore<Customer, number>({
-  key: 'id',
-  load: (options, signal) =>
-    fetchJson(`/api/customers?${dxLoadOptionsParams(options)}`, signal),
-  byKey: async (key, signal) => {
-    const params = dxLoadOptionsParams({ filter: ['id', '=', key], take: 1 });
-    const result = await fetchJson<{ data: Customer[] }>(`/api/customers?${params}`, signal);
-    if (result.data[0] === undefined) throw new Error(`customer ${key} not found`);
-    return result.data[0];
-  },
-});
-```
-
-**Language-sensitive sorting.** Pass `langParams: { locale: 'de' }` and every
-load carries it to the server, so it can collate the way the user reads. It
-belongs to the `DataSource` rather than the store, which is why the option lives
-here. DevExtreme only keeps it in the remote payload when filtering *and*
-sorting are both remote — the default `remoteOperations: 'auto'` resolves to
-all-local for a custom store and strips it — so pair it with
-`[remoteOperations]="true"`.
-
-**Scope: load-only, by design.** Create/update/delete deliberately stay out
-of this first cut — editing flows couple to validation, conflict handling and
-optimistic-update policy that this package should not decide for you. For
-editable grids, hand the widget a full `CustomStore` (or the vendor's
-`createStore` with `insertUrl`/`updateUrl`/`deleteUrl`) and keep
-`dxRemoteStore` for the read paths. If real consumer screens produce a shape
-worth hardening, CRUD can graduate the same way this API did.
-
-## Semantics
-
-- **Initial sync** (`initialSync`, default `'auto'`): the signal's value is
-  pushed into the widget on attach; if it is `undefined`, the widget's current
-  value is pulled into the signal instead.
-- **`undefined` vs `null`**: `undefined` means *absent* — a signal holding
-  `undefined` is never pushed into the widget (that is what makes `'auto'`
-  initial sync and late-created widgets work). To *clear* an option through a
-  binding, use `null`: `status.set(null)` clears a select box,
-  `status.set(undefined)` does nothing. This mirrors DevExtreme's own
-  conventions — its clearable editors write `null`, not `undefined`.
-- **Debounced typing**: DevExtreme text editors update their `value` option on
-  *blur* by default. Pair `[(dxValue)]` + `dxValueDebounce` with
-  `valueChangeEvent="input"` on the editor to get live per-keystroke updates:
-
-  ```html
-  <dx-text-box [(dxValue)]="search" [dxValueDebounce]="300" valueChangeEvent="input" />
-  ```
-
-  Without it, the binding appears to only fire on blur — that is the widget's
-  event timing, not the binding's.
-- **Echo suppression**: updates only propagate when the value *structurally*
-  changed (`Date`-aware, deep for arrays/plain objects). Override per binding
-  via `equal` / `dxValueEqual`.
-- **Debounce** applies to the widget → signal direction only, so typing into a
-  `dx-text-box` doesn't storm your `computed()` graph.
-- **Teardown** is automatic via `DestroyRef` — event handlers are detached and
-  effects destroyed when the directive/component dies.
-- **Re-attach**: with a getter host reference the binding follows widget
-  re-creation (see [Widget re-creation](#widget-re-creation)); per-widget
-  resources are disposed on each detach.
-- **Zoneless**: no `NgZone`, no `markForCheck` — signal writes are the change
-  notification.
+## Choosing your binding style
+
+Three ways to put a value on a DevExtreme editor — the classic one, and the
+two this package opens up:
+
+| | A: zone.js + Reactive Forms | B: `[(dxValue)]` | C: `[formField]` + `[dxFieldState]` |
+|---|---|---|---|
+| Change detection | zone.js (opt-in since v21) | zoneless, native | zoneless, native |
+| Vendor support | ✅ the supported config | outside support — netted by this repo's CI | same net |
+| Error display | hand-rolled per field/rule | DIY | the widget's own UI, zero template markup |
+| Schema-driven readonly/hidden/disabled | manual | — | yes, all three |
+| Value type safety | typed forms | end-to-end compile error | restored via `[dxFieldState]` |
+| Boilerplate per field | ~5–8 template lines | ~1 line | ~2 lines, flat |
+
+Use **B** for state outside a form (filters, toolbars, settings), **C** for
+forms, and **A** only where zone.js is staying anyway. Full code for all
+three, the trade-offs, and the two rules that keep them honest:
+**[Choosing your binding style](https://github.com/CaffeinatedCoder/ngx-devextreme-zoneless/blob/main/docs/binding-styles.md)**.
+The smoke app renders them side by side (`npm run smoke` →
+http://localhost:4299/compare) — including the classic syntax's measured
+zoneless behaviour: field state arrives (Angular's reactive directives mark
+for check on their own); the widget state a CVA never carries is what stays
+invisible, and is what the rest of this package covers.
+
+## What is covered
+
+Two-way directives exist wherever a widget has genuine user-mutable state —
+`[(dxValue)]` on every editor, selection and grid state on the data widgets,
+`[(dxVisible)]`/`[(dxOpened)]`/`[(dxSelectedIndex)]` on overlays and
+navigation, chart point selection — each typed to the widget's real value
+type. The
+**[directive catalog](https://github.com/CaffeinatedCoder/ngx-devextreme-zoneless/blob/main/docs/directives.md)**
+is the authoritative table. Components without a dedicated directive
+(PivotGrid, Sortable, Menu, …) are fully covered by the
+**[composition API](https://github.com/CaffeinatedCoder/ngx-devextreme-zoneless/blob/main/docs/composition-api.md)**:
+`dxOptionSignal`, `dxEventSignal` and `bindDxOption` work with **any** option
+and event of **any** DevExtreme component, fully typed.
+
+For data, `dxArrayStoreSource` puts a signal-held array behind a `DataSource`,
+and `dxRemoteStore` wraps a server load function in `resource()` vocabulary —
+loading/error signals, cancellation, signal-driven dependencies — speaking the
+complete DevExtreme.AspNet.Data loadOptions wire protocol through your own
+`fetch`:
+**[data loading and remote data](https://github.com/CaffeinatedCoder/ngx-devextreme-zoneless/blob/main/docs/remote-data.md)**.
 
 ## Entry points & tree-shaking
-
-The package ships per-family secondary entry points:
 
 ```
 ngx-devextreme-zoneless            → everything (re-exports the below)
@@ -611,39 +144,29 @@ directive is asserted to contain no Gantt, Scheduler, HtmlEditor, chart or
 grid modules). Import from a family entry point when you want the split to be
 explicit.
 
-## Type helpers
+## Documentation
 
-All building blocks are exported, e.g.:
+| Page | What it covers |
+|---|---|
+| **[Choosing your binding style](https://github.com/CaffeinatedCoder/ngx-devextreme-zoneless/blob/main/docs/binding-styles.md)** | The same form three ways — classic zone.js, `[(dxValue)]`, Signal Forms — with syntax, boilerplate and capability compared |
+| **[Directive catalog](https://github.com/CaffeinatedCoder/ngx-devextreme-zoneless/blob/main/docs/directives.md)** | Every two-way directive with its model type: editors, selection, grid state, navigation, overlays, visualization |
+| **[Signal Forms](https://github.com/CaffeinatedCoder/ngx-devextreme-zoneless/blob/main/docs/signal-forms.md)** | `[dxFieldState]`: what crosses the vendor CVA, what the directive adds, why the field is named twice, debounce ownership |
+| **[Composition API](https://github.com/CaffeinatedCoder/ngx-devextreme-zoneless/blob/main/docs/composition-api.md)** | `dxOptionSignal`/`dxEventSignal`/`bindDxOption` for any component, widget re-creation, custom adapters |
+| **[Data loading & remote data](https://github.com/CaffeinatedCoder/ngx-devextreme-zoneless/blob/main/docs/remote-data.md)** | `dxArrayStoreSource`, `dxReloadOn`, and the `dxRemoteStore` contract: cancellation, error/retry, paging, `byKey`, `langParams` |
+| **[Binding semantics & type helpers](https://github.com/CaffeinatedCoder/ngx-devextreme-zoneless/blob/main/docs/semantics.md)** | The engine contract: `undefined` vs `null`, initial sync, echo suppression, debounce, teardown, the exported type helpers |
 
-```ts
-DxHostOptionName<DxTextBoxComponent>          // 'value' | 'placeholder' | 'mode' | ...
-DxHostOptionValue<DxTextBoxComponent, 'mode'> // 'email' | 'password' | ... | undefined
-DxHostEventName<DxDataGridComponent>          // 'rowClick' | 'selectionChanged' | ...
-DxHostEventArg<DxTextBoxComponent, 'valueChanged'>
-DxHostValue<DxCheckBoxComponent>              // boolean | null
-```
+Working on the package itself:
+[development](https://github.com/CaffeinatedCoder/ngx-devextreme-zoneless/blob/main/docs/development.md)
+— builds, the smoke app's four screens, the e2e suite and the tree-shaking
+probe.
 
-## Development
+## Verified, not assumed
 
-```bash
-npm run build               # ng-packagr build → dist/ (all entry points)
-npm run typecheck:examples  # strict-template check of examples/ + type contract tests
-npm run verify              # both
-npm run smoke               # runtime smoke test app on http://localhost:4299
-npm run e2e                 # Playwright suite against the smoke app
-npm run probe               # bundle tree-shaking probe (requires a prior build)
-```
-
-The smoke app ([smoke/src/smoke.component.ts](smoke/src/smoke.component.ts))
-boots with `provideZonelessChangeDetection()` — zone.js is not even installed
-in this workspace — and exercises text box, select box, check box, slider,
-tabs, grid selection/paging/focus, signal-driven data loading, popup
-visibility, chart point selection, the composition API and widget
-re-creation in a real browser. The Playwright suite
-([e2e/smoke.spec.ts](e2e/smoke.spec.ts)) asserts both directions of every
-binding against the `data-testid` readouts and runs in CI on every push.
-
-See [examples/order-dashboard.component.ts](examples/order-dashboard.component.ts)
-for a complete signal-driven dashboard and
-[examples/type-tests.ts](examples/type-tests.ts) for the compile-time contract
-tests.
+Running DevExtreme zoneless is outside the vendor-supported configuration, so
+the claim this package makes is exactly as strong as its suite: a Playwright
+run drives every binding family through a real zoneless app — both directions,
+widget re-creation, slow and failing endpoints against a wire-protocol stub —
+on every push. The compile-time surface has its own contract tests
+([examples/type-tests.ts](examples/type-tests.ts)): option names, event names
+and value types are pinned so a vendor rename fails the build instead of
+shipping.

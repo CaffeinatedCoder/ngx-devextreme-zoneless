@@ -60,9 +60,9 @@ If the screen adds traffic to a stub path other tests count, give it its own end
 
 ## 8. Document it
 
-The README's directive table plus a paragraph if the binding has semantics worth stating (what
-`null` means, what the debounce interacts with). A directive absent from the table does not exist as
-far as users are concerned. Then `CHANGELOG.md`.
+The directive table in `docs/directives.md` plus a paragraph if the binding has semantics worth
+stating (what `null` means, what the debounce interacts with). A directive absent from the table
+does not exist as far as users are concerned. Then `CHANGELOG.md`.
 
 ## Close
 

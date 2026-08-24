@@ -41,12 +41,15 @@ fields in `package-lock.json` agree, and that `dist/package.json` picks it up af
 - Every entry earns its place by being something a consumer can act on. Internal refactors do not
   need a line.
 
-## 4. README parity
+## 4. README and docs parity
 
-The directive table must match what the entry points actually export — a directive missing from it
-does not exist as far as users are concerned. Examples come from `smoke/src/*.component.ts`; if a
-screen changed, check the prose still matches. Badges are dynamic (shields queries the registry), so
-they need no edit.
+The directive tables live in `docs/directives.md` and must match what the entry points actually
+export — a directive missing from them does not exist as far as users are concerned. Examples come
+from `smoke/src/*.component.ts`; if a screen changed, check the prose still matches, in the README
+*and* in the `docs/` page that owns the topic. README links into `docs/` are absolute GitHub URLs
+(the tarball ships only the README, so relative links would 404 on npmjs.com) — a renamed or moved
+docs page must be re-linked there. Badges are dynamic (shields queries the registry), so they need
+no edit.
 
 ## 5. Published-artifact check
 
