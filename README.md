@@ -201,9 +201,11 @@ What does *not* cross is everything a `ControlValueAccessor` has no hook for.
 | `touched` | the vendor CVA | on blur |
 | `disabled` | the vendor CVA | `setDisabledState` → `dx-state-disabled` |
 | `readonly` | **`[dxFieldState]`** | → the widget's `readOnly` option |
+| `hidden` | **`[dxFieldState]`** | → the widget's `visible` option (`dx-state-invisible`) |
 | `errors` | **`[dxFieldState]`** | → `isValid` + `validationErrors`, rendered by the widget's native message UI |
 | `pending` | **`[dxFieldState]`** | → `validationStatus: 'pending'` for async validators |
 | `required` | *nowhere* | DevExtreme has no editor-level `required` option — see below |
+| `dirty` | *nowhere* | the editor owns its `isDirty` flag and no-ops external writes — see below |
 
 ```html
 <dx-text-box
@@ -233,6 +235,17 @@ so a mismatched field is a compile error at that binding even though
 <dx-number-box [formField]="$any(profile.name)" [dxFieldState]="profile.name" />
 ```
 
+The one mistake typing cannot catch is the two bindings naming *different*
+fields — value flowing to one while another field's errors render over it. In
+dev mode the directive injects Angular's `FORM_FIELD` token and throws when the
+bindings disagree; field trees are per-node cached proxies, so the identity
+check is exact.
+
+**The schema owns what the directive writes.** While `[dxFieldState]` is
+attached it writes `readOnly`, `visible`, `isValid`, `validationStatus` and
+`validationErrors` from the field's state — do not also bind any of those on
+the element, or the two writers will fight.
+
 **Errors wait for blur by default.** `dxFieldStateShowErrors` is `'touched'`
 unless you set it to `'always'`, so a pristine form does not render every
 `required` rule as an error on load.
@@ -244,6 +257,24 @@ as a side effect of having a `RequiredRule` configured, and `dxForm`'s
 item-level `isRequired` drawing an asterisk on the *label*, which exists only
 inside a Form. A required field surfaces here the way every other rule does:
 through the error it raises when violated.
+
+**`hidden` keeps the widget in the DOM, and Angular will say so.** The
+directive maps `hidden()` to the widget's `visible: false` — `dx-state-invisible`
+on the root — which keeps the widget warm (its state, its element) where `@if`
+would destroy and re-create it. Angular's own preference is `@if`, and its
+dev-only `NG01916` warning fires whenever a bound field is hidden while
+rendered, because `FormField` cannot see the widget-level hiding. Both patterns
+are legitimate: reach for `@if` when you do not need the widget kept warm, and
+accept the advisory when you do — the mirrored `visible: false` makes the
+situation the warning worries about safe, since the hidden widget cannot be
+interacted with.
+
+**`dirty` is not mirrored either, for the opposite reason: the widget owns the
+flag.** Editors do declare `isDirty`, but the widget's `_optionChanged`
+explicitly no-ops on it, nothing renders it, and the editor overwrites it on
+every value change by comparing against its own initial value (verified against
+26.1.4). An external write would have no visible effect and would be clobbered
+by the next keystroke.
 
 Available on all 18 editor families that carry DevExtreme's `Editor` validation
 surface. `dx-filter-builder` is excluded — it extends `WidgetOptions`, not

@@ -1,4 +1,4 @@
-import { Component, signal } from '@angular/core';
+import { Component, resource, signal } from '@angular/core';
 import { DxCheckBoxModule } from 'devextreme-angular/ui/check-box';
 import { DxDateBoxModule } from 'devextreme-angular/ui/date-box';
 import { DxNumberBoxModule } from 'devextreme-angular/ui/number-box';
@@ -9,9 +9,11 @@ import {
     FormField,
     disabled,
     form,
+    hidden,
     minLength,
     readonly as readonlyRule,
     required,
+    validateAsync,
 } from '@angular/forms/signals';
 import { DX_FIELD_STATE_DIRECTIVES } from 'ngx-devextreme-zoneless/forms';
 
@@ -50,6 +52,8 @@ interface Profile {
     code: string;
     note: string;
     category: string | null;
+    website: string;
+    secret: string;
 }
 
 /**
@@ -158,15 +162,18 @@ function show(value: unknown): string {
         -->
         <h3>Errors, held until touched (the default)</h3>
         <div class="row">
-            <dx-text-box
-                id="fs-email"
-                validationMessageMode="always"
-                [formField]="$any(profile.email)"
-                [dxFieldState]="profile.email"
-            />
+            @if (showEmail()) {
+                <dx-text-box
+                    id="fs-email"
+                    validationMessageMode="always"
+                    [formField]="$any(profile.email)"
+                    [dxFieldState]="profile.email"
+                />
+            }
             <span class="readout" data-testid="email-value">{{ show(model().email) }}</span>
             <span class="readout" data-testid="email-touched">{{ profile.email().touched() }}</span>
             <span class="readout" data-testid="email-errors">{{ errorKinds(profile.email().errors()) }}</span>
+            <button data-testid="email-recreate" (click)="showEmail.set(!showEmail())">toggle email box</button>
         </div>
 
         <h3>Errors, shown immediately</h3>
@@ -200,6 +207,32 @@ function show(value: unknown): string {
             <span class="readout" data-testid="category-value">{{ show(model().category) }}</span>
         </div>
 
+        <h3>Async validation, held pending</h3>
+        <div class="row">
+            <dx-text-box
+                id="fs-website"
+                validationMessageMode="always"
+                [formField]="$any(profile.website)"
+                [dxFieldState]="profile.website"
+            />
+            <span class="readout" data-testid="website-pending">{{ profile.website().pending() }}</span>
+            <button data-testid="website-release" (click)="releaseWebsiteCheck()">release async check</button>
+        </div>
+
+        <h3>Hidden, which the CVA does not carry either</h3>
+        <div class="row">
+            <!--
+                While hidden, Angular logs the dev-only NG01916 ("hidden fields
+                should be removed from the DOM using @if"): FormField cannot see
+                the widget-level hiding. Keeping the element is the point here —
+                \`visible: false\` keeps the widget warm where @if would destroy
+                it — and the warning is the documented cost of that choice.
+            -->
+            <dx-text-box id="fs-secret" [formField]="$any(profile.secret)" [dxFieldState]="profile.secret" />
+            <span class="readout" data-testid="secret-hidden">{{ profile.secret().hidden() }}</span>
+            <button data-testid="secret-toggle" (click)="hideSecret.set(!hideSecret())">toggle secret</button>
+        </div>
+
         <h3>Form-wide</h3>
         <div class="row">
             <button data-testid="lock-toggle" (click)="locked.set(!locked())">toggle lock</button>
@@ -218,6 +251,20 @@ export class FormsComponent {
     protected readonly locked = signal(false);
     /** Widget re-creation: the field binding has to survive a new element. */
     protected readonly showName = signal(true);
+    /** Widget re-creation on the [dxFieldState] side: state must be re-applied. */
+    protected readonly showEmail = signal(true);
+    /** Drives `hidden` through the schema, not through the widget's `visible`. */
+    protected readonly hideSecret = signal(false);
+
+    /**
+     * Deterministic async validation: the website check pends until the release
+     * button resolves it, so the e2e observes `pending` as a held state rather
+     * than racing a timer. One-shot by design — each page load arms it once.
+     */
+    protected releaseWebsiteCheck: () => void = () => {};
+    private readonly websiteCheckDone = new Promise<void>((resolve) => {
+        this.releaseWebsiteCheck = resolve;
+    });
 
     protected readonly model = signal<Profile>({
         name: '',
@@ -231,6 +278,8 @@ export class FormsComponent {
         code: '',
         note: '',
         category: null,
+        website: '',
+        secret: '',
     });
 
     protected readonly profile = form(this.model, (profile) => {
@@ -251,6 +300,28 @@ export class FormsComponent {
         required(profile.code, { message: 'Code is required' });
         readonlyRule(profile.note, { when: () => this.locked() });
         required(profile.category, { message: 'Pick a category' });
+
+        // The [dxFieldState] pending path: the loader cannot settle until the
+        // release button resolves the gate, which is what makes
+        // `validationStatus: 'pending'` observable instead of a race.
+        validateAsync(profile.website, {
+            params: ({ value }) => value(),
+            factory: (params) =>
+                resource({
+                    params,
+                    loader: async ({ params: website }) => {
+                        if (website === undefined || website === '') {
+                            return 'free';
+                        }
+                        await this.websiteCheckDone;
+                        return website.includes('taken') ? 'taken' : 'free';
+                    },
+                }),
+            onError: () => undefined,
+            onSuccess: (result) =>
+                result === 'taken' ? { kind: 'taken', message: 'Name is taken' } : undefined,
+        });
+        hidden(profile.secret, { when: () => this.hideSecret() });
     });
 
     /** Error identity without leaning on message text, which is locale-shaped. */

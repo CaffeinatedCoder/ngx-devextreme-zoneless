@@ -235,6 +235,59 @@ test.describe('[dxFieldState]: the state the CVA drops', () => {
         await expect(page.locator('#fs-note')).not.toHaveClass(/dx-state-readonly/);
     });
 
+    test('a re-created widget gets the standing field state re-applied', async ({ page }) => {
+        await input(page, 'fs-email').focus();
+        await input(page, 'fs-email').blur();
+        await expect(page.locator('#fs-email')).toHaveClass(/dx-invalid/);
+
+        await readout(page, 'email-recreate').click();
+        await expect(input(page, 'fs-email')).toHaveCount(0);
+        await readout(page, 'email-recreate').click();
+
+        // No further interaction: `touched` survived on the field, so the new
+        // widget must render the standing error state by itself. The payload
+        // has *not* changed across the re-creation, so what this forbids is
+        // any "already written" cache that outlives the element — mutation-
+        // tested: a per-instance cache is inert (the @if re-creates the
+        // directive along with the widget, so a fresh instance always makes
+        // its first write), while a hoisted cache surviving the element
+        // skipped the new widget and turned exactly this case red.
+        await expect(page.locator('#fs-email')).toHaveClass(/dx-invalid/);
+        await expect(validationMessage(page, 'fs-email')).toHaveText('Email is required');
+    });
+
+    test('async validation renders as pending, then settles into its error', async ({ page }) => {
+        await expect(readout(page, 'website-pending')).toHaveText('false');
+
+        await input(page, 'fs-website').pressSequentially('taken-name');
+        await input(page, 'fs-website').blur();
+
+        // The check is gated on the release button, so `pending` is a held
+        // state: the widget shows the vendor's own pending UI and no error.
+        await expect(readout(page, 'website-pending')).toHaveText('true');
+        await expect(page.locator('#fs-website')).toHaveClass(/dx-validation-pending/);
+        await expect(page.locator('#fs-website .dx-pending-indicator')).toHaveCount(1);
+        await expect(page.locator('#fs-website')).not.toHaveClass(/dx-invalid/);
+
+        await readout(page, 'website-release').click();
+        await expect(readout(page, 'website-pending')).toHaveText('false');
+        await expect(page.locator('#fs-website')).not.toHaveClass(/dx-validation-pending/);
+        await expect(page.locator('#fs-website .dx-pending-indicator')).toHaveCount(0);
+        await expect(page.locator('#fs-website')).toHaveClass(/dx-invalid/);
+        await expect(validationMessage(page, 'fs-website')).toHaveText('Name is taken');
+    });
+
+    test('schema hidden reaches the widget as visible: false', async ({ page }) => {
+        await expect(page.locator('#fs-secret')).not.toHaveClass(/dx-state-invisible/);
+
+        await readout(page, 'secret-toggle').click();
+        await expect(readout(page, 'secret-hidden')).toHaveText('true');
+        await expect(page.locator('#fs-secret')).toHaveClass(/dx-state-invisible/);
+
+        await readout(page, 'secret-toggle').click();
+        await expect(page.locator('#fs-secret')).not.toHaveClass(/dx-state-invisible/);
+    });
+
     test('the seam is not text-box-only', async ({ page }) => {
         /*
          * Deliberately on the `always` policy: this case is about a non-text-box

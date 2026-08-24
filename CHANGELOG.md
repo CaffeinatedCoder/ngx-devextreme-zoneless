@@ -36,11 +36,13 @@
 - **`[dxFieldState]` and a new `ngx-devextreme-zoneless/forms` entry point** —
   the Angular Signal Forms seam. `[formField]` already carries value, `touched`
   and `disabled` through each editor's own `ControlValueAccessor`; this
-  directive writes the state a CVA has no hook for — `readonly`, `errors` and
-  async `pending` — into the widget's native validation UI (`readOnly`,
-  `isValid`, `validationStatus`, `validationErrors`). Available on all 18 editor
-  families carrying DevExtreme's `Editor` validation surface;
-  `dx-filter-builder` is excluded because it is not an Editor.
+  directive writes the state a CVA has no hook for — `readonly`, `hidden`,
+  `errors` and async `pending` — into the widget's own UI (`readOnly`,
+  `visible`, `isValid`, `validationStatus`, `validationErrors`). Available on
+  all 18 editor families carrying DevExtreme's `Editor` validation surface;
+  `dx-filter-builder` is excluded because it is not an Editor. `hidden` keeps
+  the widget in the DOM (`dx-state-invisible`), so Angular's dev-only `NG01916`
+  advisory — which prefers `@if` — still logs; the README documents that trade.
 
   It is a companion to `[formField]`, not a replacement, and the field is named
   twice on purpose. Angular synthesises 17 input assignments onto a form-control
@@ -53,13 +55,19 @@
   passing the same field to `[dxFieldState]` — typed to each family's real value
   type — is what restores the compile-time check.
 
-  `required` is deliberately not mirrored: no DevExtreme editor declares such an
-  option (26.1.4). A required field surfaces through the error it raises.
+  `required` and `dirty` are deliberately not mirrored. No DevExtreme editor
+  declares a `required` option (26.1.4) — a required field surfaces through the
+  error it raises. `isDirty` exists but is the widget's own telemetry: the
+  editor no-ops external writes and overwrites the flag on every value change,
+  so mirroring it would fight the widget's own writer for a flag nobody
+  renders.
 
-  `@angular/forms` is a new **optional** peer dependency, imported for types
-  only — the built entry point carries no runtime import of it. The `forms`
-  entry point is not re-exported by the main entry point, so consumers who do
-  not use Signal Forms are unaffected.
+  `@angular/forms` is a new **optional** peer dependency. In dev mode the
+  directive injects Angular's `FORM_FIELD` token and throws when `[formField]`
+  and `[dxFieldState]` name different fields — the mistake the type system
+  cannot catch, and the entry point's one runtime import of
+  `@angular/forms/signals`. The `forms` entry point is not re-exported by the
+  main entry point, so consumers who do not use Signal Forms never load it.
 
 - **`[(dxSearchPanelText)]`** for `dx-data-grid` and `dx-tree-list` — two-way
   binds the search panel's phrase to a signal. `searchPanel.text` is a nested

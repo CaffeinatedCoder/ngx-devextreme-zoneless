@@ -1,4 +1,4 @@
-import { Directive, inject } from '@angular/core';
+import { Directive } from '@angular/core';
 import { DxAutocompleteComponent } from 'devextreme-angular/ui/autocomplete';
 import { DxCalendarComponent } from 'devextreme-angular/ui/calendar';
 import { DxCheckBoxComponent } from 'devextreme-angular/ui/check-box';
@@ -33,7 +33,8 @@ import { DxFieldStateDirectiveBase } from './base';
  * `readOnly` to write to (verified against 26.1.4).
  *
  * Value types match the `[(dxValue)]` family exactly, so the same mismatch is
- * a compile error in both.
+ * a compile error in both — enforced by the `SameValueType` pins in
+ * `examples/type-tests.ts`, which stop compiling when the families drift.
  */
 
 @Directive({ selector: 'dx-text-box[dxFieldState]', exportAs: 'dxFieldState' })
@@ -42,7 +43,7 @@ export class DxTextBoxFieldStateDirective extends DxFieldStateDirectiveBase<
     string
 > {
     constructor() {
-        super(inject(DxTextBoxComponent, { self: true }));
+        super(DxTextBoxComponent);
     }
 }
 
@@ -52,7 +53,7 @@ export class DxTextAreaFieldStateDirective extends DxFieldStateDirectiveBase<
     string
 > {
     constructor() {
-        super(inject(DxTextAreaComponent, { self: true }));
+        super(DxTextAreaComponent);
     }
 }
 
@@ -62,7 +63,7 @@ export class DxNumberBoxFieldStateDirective extends DxFieldStateDirectiveBase<
     number | null
 > {
     constructor() {
-        super(inject(DxNumberBoxComponent, { self: true }));
+        super(DxNumberBoxComponent);
     }
 }
 
@@ -72,7 +73,7 @@ export class DxCheckBoxFieldStateDirective extends DxFieldStateDirectiveBase<
     boolean | null
 > {
     constructor() {
-        super(inject(DxCheckBoxComponent, { self: true }));
+        super(DxCheckBoxComponent);
     }
 }
 
@@ -82,7 +83,7 @@ export class DxSwitchFieldStateDirective extends DxFieldStateDirectiveBase<
     boolean
 > {
     constructor() {
-        super(inject(DxSwitchComponent, { self: true }));
+        super(DxSwitchComponent);
     }
 }
 
@@ -92,7 +93,7 @@ export class DxDateBoxFieldStateDirective extends DxFieldStateDirectiveBase<
     DxDateValue | null
 > {
     constructor() {
-        super(inject(DxDateBoxComponent, { self: true }));
+        super(DxDateBoxComponent);
     }
 }
 
@@ -102,7 +103,7 @@ export class DxDateRangeBoxFieldStateDirective extends DxFieldStateDirectiveBase
     DxDateRange
 > {
     constructor() {
-        super(inject(DxDateRangeBoxComponent, { self: true }));
+        super(DxDateRangeBoxComponent);
     }
 }
 
@@ -112,7 +113,7 @@ export class DxCalendarFieldStateDirective extends DxFieldStateDirectiveBase<
     DxDateValue | readonly DxDateValue[] | null
 > {
     constructor() {
-        super(inject(DxCalendarComponent, { self: true }));
+        super(DxCalendarComponent);
     }
 }
 
@@ -122,7 +123,7 @@ export class DxColorBoxFieldStateDirective extends DxFieldStateDirectiveBase<
     string | null
 > {
     constructor() {
-        super(inject(DxColorBoxComponent, { self: true }));
+        super(DxColorBoxComponent);
     }
 }
 
@@ -132,7 +133,7 @@ export class DxAutocompleteFieldStateDirective extends DxFieldStateDirectiveBase
     string | null
 > {
     constructor() {
-        super(inject(DxAutocompleteComponent, { self: true }));
+        super(DxAutocompleteComponent);
     }
 }
 
@@ -142,7 +143,7 @@ export class DxSliderFieldStateDirective extends DxFieldStateDirectiveBase<
     number
 > {
     constructor() {
-        super(inject(DxSliderComponent, { self: true }));
+        super(DxSliderComponent);
     }
 }
 
@@ -152,7 +153,7 @@ export class DxRangeSliderFieldStateDirective extends DxFieldStateDirectiveBase<
     DxNumberRange
 > {
     constructor() {
-        super(inject(DxRangeSliderComponent, { self: true }));
+        super(DxRangeSliderComponent);
     }
 }
 
@@ -162,7 +163,7 @@ export class DxSelectBoxFieldStateDirective<TValue = unknown> extends DxFieldSta
     TValue
 > {
     constructor() {
-        super(inject(DxSelectBoxComponent, { self: true }));
+        super(DxSelectBoxComponent);
     }
 }
 
@@ -172,7 +173,7 @@ export class DxLookupFieldStateDirective<TValue = unknown> extends DxFieldStateD
     TValue
 > {
     constructor() {
-        super(inject(DxLookupComponent, { self: true }));
+        super(DxLookupComponent);
     }
 }
 
@@ -182,7 +183,7 @@ export class DxDropDownBoxFieldStateDirective<TValue = unknown> extends DxFieldS
     TValue
 > {
     constructor() {
-        super(inject(DxDropDownBoxComponent, { self: true }));
+        super(DxDropDownBoxComponent);
     }
 }
 
@@ -192,7 +193,7 @@ export class DxRadioGroupFieldStateDirective<TValue = unknown> extends DxFieldSt
     TValue
 > {
     constructor() {
-        super(inject(DxRadioGroupComponent, { self: true }));
+        super(DxRadioGroupComponent);
     }
 }
 
@@ -201,7 +202,7 @@ export class DxTagBoxFieldStateDirective<
     TKey = string | number,
 > extends DxFieldStateDirectiveBase<DxTagBoxComponent, readonly TKey[]> {
     constructor() {
-        super(inject(DxTagBoxComponent, { self: true }));
+        super(DxTagBoxComponent);
     }
 }
 
@@ -211,7 +212,7 @@ export class DxHtmlEditorFieldStateDirective extends DxFieldStateDirectiveBase<
     string
 > {
     constructor() {
-        super(inject(DxHtmlEditorComponent, { self: true }));
+        super(DxHtmlEditorComponent);
     }
 }
 

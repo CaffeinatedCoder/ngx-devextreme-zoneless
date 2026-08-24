@@ -22,7 +22,7 @@ Angular ≥22.1 <23 (built against 22.1.3, zoneless) · DevExtreme / devextreme-
 26.1.4) · TypeScript 6.0 `strict`, zero `any` in the public surface · ng-packagr · Playwright
 
 ## Structure
-Six secondary entry points, each its own `src/public-api.ts`. The split is load-bearing: it is what
+Seven secondary entry points, each its own `src/public-api.ts`. The split is load-bearing: it is what
 lets a consumer importing one editor directive shake away Gantt, Scheduler, HtmlEditor, charts and
 grids. A single-FESM layout demonstrably did *not* shake, which is why `npm run probe` exists.
 
@@ -32,7 +32,10 @@ grids. A single-FESM layout demonstrably did *not* shake, which is why `npm run 
 - `editors/`, `navigation/`, `overlays/`, `data/`, `visualization/` — per-family adapter directives.
   Each imports only the `devextreme-angular/ui/<widget>` modules it actually adapts; a stray import
   is what breaks the probe
-- `src/` — the main entry point, re-exporting everything plus `DX_SIGNAL_DIRECTIVES`
+- `forms/` — the Signal Forms seam: `[dxFieldState]` presents a field's state in the editor's own
+  validation UI. The only entry point with a peer outside DevExtreme (`@angular/forms`, optional),
+  which is why the main entry point does **not** re-export it
+- `src/` — the main entry point, re-exporting everything except `forms` plus `DX_SIGNAL_DIRECTIVES`
 - `smoke/` — the zoneless reference app the e2e suite drives. Two screens without a router: `/` is
   the binding screen, `/remote` the remote-data screens. **These are reference consumers, not test
   fixtures** — the README's examples are written from them, so if a screen stops compiling the docs

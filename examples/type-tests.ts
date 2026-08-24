@@ -15,12 +15,17 @@ import { DxTextBoxComponent } from 'devextreme-angular/ui/text-box';
 import { DxTreeListComponent } from 'devextreme-angular/ui/tree-list';
 import type {
     DxBindingAdapter,
+    DxDateRange,
+    DxDateValue,
+    DxHostComponent,
     DxHostEventArg,
     DxHostEventName,
     DxHostOptionName,
     DxHostOptionValue,
     DxHostValue,
     DxInstanceOf,
+    DxNumberRange,
+    DxValueDirectiveBase,
 } from 'ngx-devextreme-zoneless';
 import type DataSource from 'devextreme/data/data_source';
 import {
@@ -35,11 +40,48 @@ import {
     onDxWidgetReady,
 } from 'ngx-devextreme-zoneless';
 import type { LoadOptions } from 'devextreme/common/data';
-import type { Field } from '@angular/forms/signals';
+import type { Field, FieldTree } from '@angular/forms/signals';
 import type {
+    DxAutocompleteFieldStateDirective,
+    DxCalendarFieldStateDirective,
+    DxCheckBoxFieldStateDirective,
+    DxColorBoxFieldStateDirective,
+    DxDateBoxFieldStateDirective,
+    DxDateRangeBoxFieldStateDirective,
+    DxDropDownBoxFieldStateDirective,
+    DxFieldStateDirectiveBase,
+    DxHtmlEditorFieldStateDirective,
+    DxLookupFieldStateDirective,
     DxNumberBoxFieldStateDirective,
+    DxRadioGroupFieldStateDirective,
+    DxRangeSliderFieldStateDirective,
+    DxSelectBoxFieldStateDirective,
+    DxSliderFieldStateDirective,
+    DxSwitchFieldStateDirective,
+    DxTagBoxFieldStateDirective,
+    DxTextAreaFieldStateDirective,
     DxTextBoxFieldStateDirective,
 } from 'ngx-devextreme-zoneless/forms';
+import type {
+    DxAutocompleteValueDirective,
+    DxCalendarValueDirective,
+    DxCheckBoxValueDirective,
+    DxColorBoxValueDirective,
+    DxDateBoxValueDirective,
+    DxDateRangeBoxValueDirective,
+    DxDropDownBoxValueDirective,
+    DxHtmlEditorValueDirective,
+    DxLookupValueDirective,
+    DxNumberBoxValueDirective,
+    DxRadioGroupValueDirective,
+    DxRangeSliderValueDirective,
+    DxSelectBoxValueDirective,
+    DxSliderValueDirective,
+    DxSwitchValueDirective,
+    DxTagBoxValueDirective,
+    DxTextAreaValueDirective,
+    DxTextBoxValueDirective,
+} from 'ngx-devextreme-zoneless/editors';
 
 declare function expectType<T>(value: T): void;
 declare const textBox: DxTextBoxComponent;
@@ -217,10 +259,11 @@ inInjectionContext(() => {
  * Signal Forms seam (`ngx-devextreme-zoneless/forms`)
  * ------------------------------------------------------------------------ */
 
-/* `DxFieldStateDirectiveBase` reaches these four options through a type
+/* `DxFieldStateDirectiveBase` reaches these five options through a type
  * parameter, so the write site casts and nothing checks the names there. A
  * vendor rename of any of them must fail this file instead of shipping. */
 const editorReadOnlyOption: DxHostOptionName<DxTextBoxComponent> = 'readOnly';
+const editorVisibleOption: DxHostOptionName<DxTextBoxComponent> = 'visible';
 const editorIsValidOption: DxHostOptionName<DxTextBoxComponent> = 'isValid';
 const editorValidationStatusOption: DxHostOptionName<DxTextBoxComponent> = 'validationStatus';
 const editorValidationErrorsOption: DxHostOptionName<DxTextBoxComponent> = 'validationErrors';
@@ -257,3 +300,91 @@ expectType<Field<number | null>>(numberBoxFieldState.dxFieldState());
 declare const stringField: Field<string>;
 // @ts-expect-error — a string field cannot drive a number box
 expectType<Field<number | null>>(stringField);
+
+/* ------------------------------------------------------------------------ *
+ * Field variance (measured against TS 6.0 / Angular 22.1)
+ * ------------------------------------------------------------------------ */
+
+/* `Field<T>` is `() => FieldState<T>` and `FieldState` holds a
+ * `WritableSignal<T>`, which would make it invariant — except `set` is
+ * declared method-style, and methods are checked bivariantly. That bivariance
+ * is what lets a consumer's realistic field types bind to the directives'
+ * declared value types at all: a `Date | null` field into the date box's
+ * `DxDateValue | null`, a mutable `number[]` into the tag box's readonly
+ * array, a mutable tuple into the range slider's readonly one. No smoke
+ * screen compiles any of these combinations, so they are pinned here: a
+ * TypeScript or Angular change that tightens the variance would break every
+ * date/tag/range consumer, and must break this file first. */
+declare const consumerDateField: FieldTree<Date | null>;
+expectType<Field<DxDateValue | null>>(consumerDateField);
+declare const consumerCalendarField: FieldTree<Date | null>;
+expectType<Field<DxDateValue | readonly DxDateValue[] | null>>(consumerCalendarField);
+declare const consumerTagsField: FieldTree<number[]>;
+expectType<Field<readonly number[]>>(consumerTagsField);
+declare const consumerRangeField: FieldTree<[number, number]>;
+expectType<Field<DxNumberRange>>(consumerRangeField);
+declare const consumerDateRangeField: FieldTree<[Date | null, Date | null]>;
+expectType<Field<DxDateRange>>(consumerDateRangeField);
+
+/* ------------------------------------------------------------------------ *
+ * [(dxValue)] and [dxFieldState] declare the same value type per family
+ * ------------------------------------------------------------------------ */
+
+/* Both families promise "the family's real value type", and each states it in
+ * its own file — nothing but a comment kept them in step. These lines are the
+ * enforcement: each pair stops compiling when the two drift. `Equals` is the
+ * exact-type check; mutual assignability would wave through `any` and unions
+ * absorbing each other. */
+type Equals<A, B> = (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2
+    ? true
+    : false;
+type DxValueTypeOf<D> = D extends DxValueDirectiveBase<DxHostComponent, infer V> ? V : never;
+type DxFieldValueTypeOf<D> =
+    D extends DxFieldStateDirectiveBase<DxHostComponent, infer V> ? V : never;
+type SameValueType<TFieldState, TValueDirective> = Equals<
+    DxFieldValueTypeOf<TFieldState>,
+    DxValueTypeOf<TValueDirective>
+>;
+
+const autocompleteAgrees: SameValueType<
+    DxAutocompleteFieldStateDirective,
+    DxAutocompleteValueDirective
+> = true;
+const calendarAgrees: SameValueType<DxCalendarFieldStateDirective, DxCalendarValueDirective> = true;
+const checkBoxAgrees: SameValueType<DxCheckBoxFieldStateDirective, DxCheckBoxValueDirective> = true;
+const colorBoxAgrees: SameValueType<DxColorBoxFieldStateDirective, DxColorBoxValueDirective> = true;
+const dateBoxAgrees: SameValueType<DxDateBoxFieldStateDirective, DxDateBoxValueDirective> = true;
+const dateRangeBoxAgrees: SameValueType<
+    DxDateRangeBoxFieldStateDirective,
+    DxDateRangeBoxValueDirective
+> = true;
+const dropDownBoxAgrees: SameValueType<
+    DxDropDownBoxFieldStateDirective,
+    DxDropDownBoxValueDirective
+> = true;
+const htmlEditorAgrees: SameValueType<
+    DxHtmlEditorFieldStateDirective,
+    DxHtmlEditorValueDirective
+> = true;
+const lookupAgrees: SameValueType<DxLookupFieldStateDirective, DxLookupValueDirective> = true;
+const numberBoxAgrees: SameValueType<
+    DxNumberBoxFieldStateDirective,
+    DxNumberBoxValueDirective
+> = true;
+const radioGroupAgrees: SameValueType<
+    DxRadioGroupFieldStateDirective,
+    DxRadioGroupValueDirective
+> = true;
+const rangeSliderAgrees: SameValueType<
+    DxRangeSliderFieldStateDirective,
+    DxRangeSliderValueDirective
+> = true;
+const selectBoxAgrees: SameValueType<
+    DxSelectBoxFieldStateDirective,
+    DxSelectBoxValueDirective
+> = true;
+const sliderAgrees: SameValueType<DxSliderFieldStateDirective, DxSliderValueDirective> = true;
+const switchAgrees: SameValueType<DxSwitchFieldStateDirective, DxSwitchValueDirective> = true;
+const tagBoxAgrees: SameValueType<DxTagBoxFieldStateDirective, DxTagBoxValueDirective> = true;
+const textAreaAgrees: SameValueType<DxTextAreaFieldStateDirective, DxTextAreaValueDirective> = true;
+const textBoxAgrees: SameValueType<DxTextBoxFieldStateDirective, DxTextBoxValueDirective> = true;
