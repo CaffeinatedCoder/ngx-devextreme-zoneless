@@ -288,6 +288,13 @@ test.describe('[dxFieldState]: the state the CVA drops', () => {
         await expect(page.locator('#fs-secret')).not.toHaveClass(/dx-state-invisible/);
     });
 
+    test('a submit error renders through the widget like any schema error', async ({ page }) => {
+        await readout(page, 'submit').click();
+        await expect(readout(page, 'username-errors')).toHaveText('server');
+        await expect(page.locator('#form-username')).toHaveClass(/dx-invalid/);
+        await expect(validationMessage(page, 'form-username')).toHaveText('Username taken');
+    });
+
     test('the seam is not text-box-only', async ({ page }) => {
         /*
          * Deliberately on the `always` policy: this case is about a non-text-box
@@ -301,5 +308,127 @@ test.describe('[dxFieldState]: the state the CVA drops', () => {
         await page.locator('.dx-list-item', { hasText: 'Shipped' }).click();
         await expect(readout(page, 'category-value')).toHaveText('string:Shipped');
         await expect(page.locator('#fs-category')).not.toHaveClass(/dx-invalid/);
+    });
+});
+
+test.describe('value boundaries', () => {
+    test('an ISO string model round-trips through dateSerializationFormat', async ({ page }) => {
+        // model → widget: the string renders as a date…
+        await readout(page, 'shipped-set').click();
+        await expect(input(page, 'form-shipped')).toHaveValue('3/15/2026');
+        await expect(readout(page, 'shipped-value')).toHaveText('string:2026-03-15');
+
+        // …widget → model: an edit comes back as the serialized string, never
+        // as a Date. `show()` spells a Date as `Date:…`, so the readout itself
+        // is the alarm if the widget ever stops serializing.
+        await input(page, 'form-shipped').fill('4/20/2026');
+        await input(page, 'form-shipped').blur();
+        await expect(readout(page, 'shipped-value')).toHaveText('string:2026-04-20');
+    });
+
+    test('without dateSerializationFormat, an edit from empty hands the model a Date', async ({
+        page,
+    }) => {
+        // The trap the recipe exists for: format inference needs a string
+        // value to infer *from*, and an empty field has none. Asserted on the
+        // type tag only — the exact day depends on the runner's timezone,
+        // because the widget parses display text into a local-time Date.
+        await input(page, 'form-shipped-loose').fill('4/20/2026');
+        await input(page, 'form-shipped-loose').blur();
+        await expect(readout(page, 'shipped-loose-value')).toHaveText(/^Date:/);
+    });
+
+    test('clearing a number box writes null into the model, not 0', async ({ page }) => {
+        // The widget's own typing says `value?: number`, but the runtime writes
+        // `null` on clear — the same category of typings gap as the string
+        // counts on the wire. A `number | null` field is therefore the correct
+        // model shape, and this pins why.
+        await readout(page, 'age-set').click();
+        await expect(readout(page, 'age-value')).toHaveText('number:42');
+
+        await input(page, 'form-age').fill('');
+        await input(page, 'form-age').blur();
+        await expect(readout(page, 'age-value')).toHaveText('null');
+    });
+});
+
+test.describe('fragile corners, pinned against Angular 22.1', () => {
+    /*
+     * These cases pin upstream Signal Forms behavior that this package's docs
+     * lean on — none of them exercises this library's code. A red case here
+     * after an Angular bump means the upstream behavior moved: re-read the
+     * linked issue, then update docs/signal-forms.md and the case together.
+     */
+
+    test('reset() wins over a pending debounced write (angular#68076, fixed 22.0.0)', async ({
+        page,
+    }) => {
+        // First leg proves the debounced path delivers without a blur — so the
+        // second leg's pending write demonstrably exists to be raced.
+        await input(page, 'form-search').pressSequentially('abc');
+        await expect(readout(page, 'search-value')).toHaveText('string:abc');
+
+        // Arm a fresh pending write, then reset inside the 500ms window. The
+        // fix makes reset() synchronize the control, so the superseded write
+        // becomes a no-op instead of clobbering the reset value later.
+        await input(page, 'form-search').pressSequentially('xyz');
+        await readout(page, 'search-reset').click();
+        await expect(readout(page, 'search-value')).toHaveText('string:reset-value');
+        await expect(input(page, 'form-search')).toHaveValue('reset-value');
+
+        // Outlive the window: the stale write must never land.
+        await page.waitForTimeout(700);
+        await expect(readout(page, 'search-value')).toHaveText('string:reset-value');
+        await expect(input(page, 'form-search')).toHaveValue('reset-value');
+    });
+
+    test('a submit error blocks the retry until an edit (angular#67882, intended)', async ({
+        page,
+    }) => {
+        await expect(readout(page, 'submit-runs')).toHaveText('0');
+
+        await readout(page, 'submit').click();
+        await expect(readout(page, 'submit-runs')).toHaveText('1');
+        await expect(readout(page, 'username-errors')).toHaveText('server');
+
+        // Second attempt without an edit: the standing submit error keeps the
+        // field invalid and the action does not run again. Maintainer-stated
+        // intent (transient failures should not be returned as validation
+        // errors), pinned so a future clear/ignore API shows up as a red case
+        // rather than as a silent semantics change.
+        await readout(page, 'submit').click();
+        await expect(readout(page, 'username-errors')).toHaveText('server');
+        await page.waitForTimeout(150);
+        await expect(readout(page, 'submit-runs')).toHaveText('1');
+
+        // An edit clears the submit error, and the retry then runs.
+        await input(page, 'form-username').pressSequentially('rico');
+        await input(page, 'form-username').blur();
+        await expect(readout(page, 'username-errors')).toHaveText('none');
+        await readout(page, 'submit').click();
+        await expect(readout(page, 'submit-runs')).toHaveText('2');
+    });
+
+    test('the number box keeps intermediate text a native input loses (angular#69635, live)', async ({
+        page,
+    }) => {
+        // The widget owns its text buffer: every keystroke of '-0.5' survives
+        // (the intermediate '-' and '-0.' parse to nothing / the same number,
+        // so the write-back is a no-op echo), and the model settles on the
+        // parsed value.
+        await input(page, 'form-price').pressSequentially('-0.5');
+        await expect(input(page, 'form-price')).toHaveValue('-0.5');
+        await expect(readout(page, 'price-value')).toHaveText('number:-0.5');
+
+        // The native control loses it: Angular writes the parsed value back
+        // into .value on the render flush after each keystroke, destroying
+        // text that does not round-trip through Number → String. The delay is
+        // load-bearing: it forces a flush between keystrokes — typed fast
+        // enough, all four land in one flush and there is nothing to destroy,
+        // which is a timing escape, not a fix. This half going red means
+        // Angular fixed #69635 — delete it and soften the docs claim; do not
+        // fix the app.
+        await page.locator('#native-price').pressSequentially('-0.5', { delay: 75 });
+        await expect(page.locator('#native-price')).not.toHaveValue('-0.5');
     });
 });

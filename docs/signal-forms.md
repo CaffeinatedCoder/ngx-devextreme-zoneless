@@ -79,6 +79,16 @@ item-level `isRequired` drawing an asterisk on the *label*, which exists only
 inside a Form. A required field surfaces here the way every other rule does:
 through the error it raises when violated.
 
+The same limit is why `[dxFieldState]` does not mirror `required()` into
+`aria-required`: the vendor writes that attribute through an internal
+`setAria` with no public counterpart, and the one public escape —
+`inputAttr` — exists only on the text-editor families, replaces its whole
+attribute object on every write, and on `dx-lookup` targets a different
+element than the widget's own aria target. Where accessibility parity
+matters, set it yourself on a text-editor family —
+`[inputAttr]="{ 'aria-required': profile.name().required() }"` — it will not
+collide with anything this directive writes.
+
 **`hidden` keeps the widget in the DOM, and Angular will say so.** The
 directive maps `hidden()` to the widget's `visible: false` — `dx-state-invisible`
 on the root — which keeps the widget warm (its state, its element) where `@if`
@@ -115,3 +125,69 @@ with the default `change`, the model is only updated on blur, so there is
 nothing left to debounce. Set `valueChangeEvent="input"` on the editor and let
 Signal Forms own the debounce policy — do not also reach for `dxValueDebounce`,
 which belongs to the `[(dxValue)]` path, not this one.
+
+## Value boundaries
+
+**A date field can keep ISO strings in the model — the widget itself does the
+conversion.** Set `dateSerializationFormat` and the widget's `value` *option*
+holds the serialized string; the CVA passes it through verbatim in both
+directions, so a `string | null` field round-trips with no adapter (measured
+against 26.1.4, pinned by e2e):
+
+```html
+<dx-date-box
+    dateSerializationFormat="yyyy-MM-dd"
+    [formField]="$any(checkout.shippedOn)"
+    [dxFieldState]="checkout.shippedOn"
+/>
+```
+
+Set the format *explicitly*. Without it the widget infers a serialization
+format from the string value it already holds — and a field that starts empty
+has nothing to infer from, so the first edit hands the model a raw `Date`.
+That trap is pinned by its own e2e case. Two more edges, verified against the
+installed sources:
+
+- the option works only while the global config default
+  `forceIsoDateParsing: true` stands — `config({ forceIsoDateParsing: false })`
+  anywhere in the app silently disables serialization on `dx-date-box` and
+  `dx-date-range-box` (`dx-calendar`'s is ungated). Avoid that flag
+- `dx-date-range-box` serializes all three of `value`, `startDate` and
+  `endDate`; `dx-calendar` takes the same option
+- **without a serialization format, the widget aliases the exact `Date`
+  instance it was handed** — no clone on write or read. Mutating that `Date`
+  in place changes the widget's bound value with no event fired: the same
+  hazard class as `dxForm`'s `formData`. ISO strings sidestep the whole
+  category, which is the deeper reason to prefer them
+
+**A cleared number box writes `null`, not `0`.** The vendor's own typing says
+`value?: number`, but the runtime writes `null` when the input is emptied (and
+renders `null` as an empty input) — so `number | null` is the correct model
+shape for any number field a user can clear. Pinned by e2e.
+
+## Fragile corners, pinned
+
+Three upstream Signal Forms behaviors this package's guidance leans on, each
+pinned by an e2e case in `e2e/forms.spec.ts` so an Angular bump that moves one
+turns the suite red. Statuses as of Angular 22.1.3:
+
+- **`reset()` beats a pending debounced write** (angular#68076, fixed in
+  22.0.0). With `debounce(path, ms)` armed and an edit mid-window,
+  `reset(value)` synchronizes the control, so the superseded write becomes a
+  no-op instead of clobbering the reset value when the timer fires.
+- **A submit error blocks the retry until an edit** (angular#67882, open —
+  and maintainer-stated *intent*). An error returned by a `submit()` action
+  clears only when a field value changes, so resubmitting without an edit
+  does not re-run the action. Design for it: return a `ValidationError` only
+  for a real field-semantic problem; a transient server failure belongs in
+  your own state, outside the form. The submit error itself renders through
+  `[dxFieldState]` like any schema error.
+- **A native number input can lose keystrokes; the number box cannot**
+  (angular#69635, live at 22.1.3 — fixed in 22.0.7, reverted in 22.0.8).
+  Angular writes the parsed value back into a native input's `.value` on the
+  render flush after each keystroke, destroying intermediate text like `-` or
+  `0.` whenever a flush interleaves with typing. The DevExtreme number box is
+  structurally immune — the write-back is an echo of its own `value` option
+  and no-ops — which is a concrete reason to prefer `dx-number-box` over a
+  native input inside Signal Forms. Both halves are pinned; the native case
+  going red means Angular fixed the issue.

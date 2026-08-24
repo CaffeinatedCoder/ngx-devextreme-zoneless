@@ -7,12 +7,14 @@ import { DxTagBoxModule } from 'devextreme-angular/ui/tag-box';
 import { DxTextBoxModule } from 'devextreme-angular/ui/text-box';
 import {
     FormField,
+    debounce,
     disabled,
     form,
     hidden,
     minLength,
     readonly as readonlyRule,
     required,
+    submit,
     validateAsync,
 } from '@angular/forms/signals';
 import { DX_FIELD_STATE_DIRECTIVES } from 'ngx-devextreme-zoneless/forms';
@@ -54,6 +56,12 @@ interface Profile {
     category: string | null;
     website: string;
     secret: string;
+    search: string;
+    username: string;
+    price: number | null;
+    nativePrice: number | null;
+    shippedOn: string | null;
+    shippedLoose: Date | string | null;
 }
 
 /**
@@ -233,6 +241,70 @@ function show(value: unknown): string {
             <button data-testid="secret-toggle" (click)="hideSecret.set(!hideSecret())">toggle secret</button>
         </div>
 
+        <h3>reset() while a debounced write is pending</h3>
+        <div class="row">
+            <dx-text-box id="form-search" valueChangeEvent="input" [formField]="$any(profile.search)" />
+            <span class="readout" data-testid="search-value">{{ show(model().search) }}</span>
+            <button data-testid="search-reset" (click)="resetSearch()">reset search</button>
+        </div>
+
+        <h3>Submit, and what a server error does to the second attempt</h3>
+        <div class="row">
+            <dx-text-box
+                id="form-username"
+                validationMessageMode="always"
+                dxFieldStateShowErrors="always"
+                [formField]="$any(profile.username)"
+                [dxFieldState]="profile.username"
+            />
+            <span class="readout" data-testid="submit-runs">{{ actionRuns() }}</span>
+            <span class="readout" data-testid="username-errors">{{ errorKinds(profile.username().errors()) }}</span>
+            <button data-testid="submit" (click)="submitUsername()">submit</button>
+        </div>
+
+        <h3>Number editing: the widget owns its text buffer</h3>
+        <div class="row">
+            <dx-number-box id="form-price" valueChangeEvent="input" [formField]="$any(profile.price)" />
+            <span class="readout" data-testid="price-value">{{ show(model().price) }}</span>
+            <!--
+                The native control angular#69635 breaks, kept beside the immune
+                widget: Angular writes the parsed number back into a native
+                input's .value on every keystroke, destroying intermediate text
+                ('-', '0.') that does not round-trip through Number → String.
+                The widget never exposes its text buffer to that write-back.
+            -->
+            <input id="native-price" type="number" [formField]="profile.nativePrice" />
+        </div>
+
+        <h3>ISO date strings, via the widget's own serialization</h3>
+        <div class="row">
+            <!--
+                dateSerializationFormat makes the widget's value *option* hold
+                the serialized string — the CVA passes it through verbatim, so
+                the model round-trips ISO strings with no adapter (verified
+                against 26.1.4; gated on the config default
+                forceIsoDateParsing: true).
+            -->
+            <dx-date-box
+                id="form-shipped"
+                dateSerializationFormat="yyyy-MM-dd"
+                [formField]="$any(profile.shippedOn)"
+                [dxFieldState]="profile.shippedOn"
+            />
+            <span class="readout" data-testid="shipped-value">{{ show(model().shippedOn) }}</span>
+            <button data-testid="shipped-set" (click)="setShippedOn()">set shipped</button>
+        </div>
+        <div class="row">
+            <!--
+                The same edit without dateSerializationFormat: from an empty
+                field the widget has no string value to infer a format from,
+                so the model receives a raw Date. The model type admits both
+                so the readout can report which one actually arrived.
+            -->
+            <dx-date-box id="form-shipped-loose" [formField]="$any(profile.shippedLoose)" />
+            <span class="readout" data-testid="shipped-loose-value">{{ show(model().shippedLoose) }}</span>
+        </div>
+
         <h3>Form-wide</h3>
         <div class="row">
             <button data-testid="lock-toggle" (click)="locked.set(!locked())">toggle lock</button>
@@ -280,6 +352,12 @@ export class FormsComponent {
         category: null,
         website: '',
         secret: '',
+        search: '',
+        username: '',
+        price: null,
+        nativePrice: null,
+        shippedOn: null,
+        shippedLoose: null,
     });
 
     protected readonly profile = form(this.model, (profile) => {
@@ -322,6 +400,10 @@ export class FormsComponent {
                 result === 'taken' ? { kind: 'taken', message: 'Name is taken' } : undefined,
         });
         hidden(profile.secret, { when: () => this.hideSecret() });
+
+        // Model sync debounced: the reset-vs-debounce pin needs a write that
+        // is demonstrably still pending when reset() lands.
+        debounce(profile.search, 500);
     });
 
     /** Error identity without leaning on message text, which is locale-shaped. */
@@ -347,5 +429,31 @@ export class FormsComponent {
 
     protected setTags(): void {
         this.model.update((profile) => ({ ...profile, tags: [1, 3] }));
+    }
+
+    /** How often the submit action actually ran — the blocked-retry readout. */
+    protected readonly actionRuns = signal(0);
+
+    protected resetSearch(): void {
+        this.profile.search().reset('reset-value');
+    }
+
+    /**
+     * First run fails with a root-level submit error (no fieldTree, so it
+     * lands on the submitted field itself); every later run succeeds. That
+     * split is what lets the e2e observe the retry being blocked while the
+     * error stands, and running again once an edit has cleared it.
+     */
+    protected submitUsername(): void {
+        void submit(this.profile.username, async () => {
+            this.actionRuns.update((count) => count + 1);
+            return this.actionRuns() === 1
+                ? [{ kind: 'server', message: 'Username taken' }]
+                : undefined;
+        });
+    }
+
+    protected setShippedOn(): void {
+        this.model.update((profile) => ({ ...profile, shippedOn: '2026-03-15' }));
     }
 }

@@ -325,6 +325,12 @@ declare const consumerRangeField: FieldTree<[number, number]>;
 expectType<Field<DxNumberRange>>(consumerRangeField);
 declare const consumerDateRangeField: FieldTree<[Date | null, Date | null]>;
 expectType<Field<DxDateRange>>(consumerDateRangeField);
+/* The ISO-string model shape: `dateSerializationFormat` keeps the widget's
+ * value option a string, so a NodaTime-style `string | null` field is a
+ * first-class citizen of the date box. The forms smoke screen compiles this
+ * combination too; the pin keeps it independent of that screen surviving. */
+declare const consumerIsoDateField: FieldTree<string | null>;
+expectType<Field<DxDateValue | null>>(consumerIsoDateField);
 
 /* ------------------------------------------------------------------------ *
  * [(dxValue)] and [dxFieldState] declare the same value type per family
