@@ -10,9 +10,10 @@ import {
     disabled,
     form,
     minLength,
-    readonly as readonlyWhen,
+    readonly as readonlyRule,
     required,
 } from '@angular/forms/signals';
+import { DX_FIELD_STATE_DIRECTIVES } from 'ngx-devextreme-zoneless/forms';
 
 /*
  * Signal Forms certification screen, served at `/forms` and driven by
@@ -45,6 +46,10 @@ interface Profile {
     birthday: Date | null;
     status: string | null;
     tags: number[];
+    email: string;
+    code: string;
+    note: string;
+    category: string | null;
 }
 
 /**
@@ -79,6 +84,7 @@ function show(value: unknown): string {
         DxTagBoxModule,
         DxTextBoxModule,
         FormField,
+        DX_FIELD_STATE_DIRECTIVES,
     ],
     template: `
         <h3>Text ([formField] over the vendor CVA)</h3>
@@ -142,6 +148,58 @@ function show(value: unknown): string {
             <button data-testid="tags-set" (click)="setTags()">set tags</button>
         </div>
 
+        <!--
+            Everything below pairs the vendor CVA (which carries value, touched
+            and disabled) with [dxFieldState] (which carries readonly and the
+            errors). The field is named twice by necessity: a directive of ours
+            claiming the \`formField\` binding would stop the compiler treating the
+            element as a form control — and the runtime \`control\` instruction is
+            keyed on the same condition, so the value binding would go with it.
+        -->
+        <h3>Errors, held until touched (the default)</h3>
+        <div class="row">
+            <dx-text-box
+                id="fs-email"
+                validationMessageMode="always"
+                [formField]="$any(profile.email)"
+                [dxFieldState]="profile.email"
+            />
+            <span class="readout" data-testid="email-value">{{ show(model().email) }}</span>
+            <span class="readout" data-testid="email-touched">{{ profile.email().touched() }}</span>
+            <span class="readout" data-testid="email-errors">{{ errorKinds(profile.email().errors()) }}</span>
+        </div>
+
+        <h3>Errors, shown immediately</h3>
+        <div class="row">
+            <dx-text-box
+                id="fs-code"
+                validationMessageMode="always"
+                dxFieldStateShowErrors="always"
+                [formField]="$any(profile.code)"
+                [dxFieldState]="profile.code"
+            />
+            <span class="readout" data-testid="code-touched">{{ profile.code().touched() }}</span>
+        </div>
+
+        <h3>Readonly, which the CVA does not carry</h3>
+        <div class="row">
+            <dx-text-box id="fs-note" [formField]="$any(profile.note)" [dxFieldState]="profile.note" />
+            <span class="readout" data-testid="note-readonly">{{ profile.note().readonly() }}</span>
+        </div>
+
+        <h3>Another family, same seam</h3>
+        <div class="row">
+            <dx-select-box
+                id="fs-category"
+                validationMessageMode="always"
+                dxFieldStateShowErrors="always"
+                [items]="statuses"
+                [formField]="$any(profile.category)"
+                [dxFieldState]="profile.category"
+            />
+            <span class="readout" data-testid="category-value">{{ show(model().category) }}</span>
+        </div>
+
         <h3>Form-wide</h3>
         <div class="row">
             <button data-testid="lock-toggle" (click)="locked.set(!locked())">toggle lock</button>
@@ -169,14 +227,30 @@ export class FormsComponent {
         birthday: null,
         status: null,
         tags: [],
+        email: '',
+        code: '',
+        note: '',
+        category: null,
     });
 
     protected readonly profile = form(this.model, (profile) => {
         required(profile.name);
         minLength(profile.name, 3);
-        disabled(profile.age, () => this.locked());
-        readonlyWhen(profile.status, () => this.locked());
+        disabled(profile.age, { when: () => this.locked() });
+        readonlyRule(profile.status, { when: () => this.locked() });
         required(profile.status);
+
+        // The [dxFieldState] half of the screen. Separate fields on purpose:
+        // the widgets above carry the bare CVA and their negative assertions
+        // are the alarm for a vendor release closing that gap, so they must
+        // stay free of the companion directive.
+        // Explicit messages: they are what the widget renders, so the e2e can
+        // assert the exact string rather than merely that something appeared.
+        required(profile.email, { message: 'Email is required' });
+        minLength(profile.email, 5, { message: 'At least 5 characters' });
+        required(profile.code, { message: 'Code is required' });
+        readonlyRule(profile.note, { when: () => this.locked() });
+        required(profile.category, { message: 'Pick a category' });
     });
 
     /** Error identity without leaning on message text, which is locale-shaped. */

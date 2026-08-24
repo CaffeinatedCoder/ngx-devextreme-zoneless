@@ -12,6 +12,7 @@
     "navigation/**/*.ts",
     "overlays/**/*.ts",
     "data/**/*.ts",
-    "visualization/**/*.ts"
+    "visualization/**/*.ts",
+    "forms/**/*.ts"
   ]
 }

@@ -4,6 +4,16 @@
 
 ### Breaking changes
 
+- **The Angular peer range is now `>=22.1.0 <23.0.0`** (was `>=20.0.0 <23.0.0`).
+  Consumers on Angular 20 or 21 should stay on 2.1.0. The old floor was never
+  exercised by CI, which has only ever built and tested against 22.1.x — an
+  advertised range with no gate behind it is not a claim this package should
+  make, and Signal Forms support is what brought it to a head. `@angular/forms`
+  joins as an **optional** peer on the same range, for the new `forms` entry
+  point only; declaring it on a narrower range than `@angular/core` would have
+  manufactured a peer conflict for every Angular 20/21 consumer who had forms
+  installed, since an optional peer is still range-checked when present.
+
 - **`[(dxFormData)]` no longer lets the widget mutate your object.** `dxForm`
   used to edit the bound `formData` object in place — the very defect that made
   the binding stop emitting (see *Fixed*). The widget now works on its own
@@ -22,6 +32,34 @@
   commits that no longer exist. Published packages themselves are untouched.
 
 ### Added
+
+- **`[dxFieldState]` and a new `ngx-devextreme-zoneless/forms` entry point** —
+  the Angular Signal Forms seam. `[formField]` already carries value, `touched`
+  and `disabled` through each editor's own `ControlValueAccessor`; this
+  directive writes the state a CVA has no hook for — `readonly`, `errors` and
+  async `pending` — into the widget's native validation UI (`readOnly`,
+  `isValid`, `validationStatus`, `validationErrors`). Available on all 18 editor
+  families carrying DevExtreme's `Editor` validation surface;
+  `dx-filter-builder` is excluded because it is not an Editor.
+
+  It is a companion to `[formField]`, not a replacement, and the field is named
+  twice on purpose. Angular synthesises 17 input assignments onto a form-control
+  host, which collide by name with DevExtreme's generated wrappers and fail
+  `strictTemplates` on nine editor families. That is a false positive, but a
+  directive claiming the `formField` binding to suppress it also disables the
+  runtime instruction that makes `[formField]` work at all — the compiler gate
+  and the runtime gate are the same gate, which was measured rather than
+  assumed. `[formField]` therefore still needs `$any()` on those families, and
+  passing the same field to `[dxFieldState]` — typed to each family's real value
+  type — is what restores the compile-time check.
+
+  `required` is deliberately not mirrored: no DevExtreme editor declares such an
+  option (26.1.4). A required field surfaces through the error it raises.
+
+  `@angular/forms` is a new **optional** peer dependency, imported for types
+  only — the built entry point carries no runtime import of it. The `forms`
+  entry point is not re-exported by the main entry point, so consumers who do
+  not use Signal Forms are unaffected.
 
 - **`[(dxSearchPanelText)]`** for `dx-data-grid` and `dx-tree-list` — two-way
   binds the search panel's phrase to a signal. `searchPanel.text` is a nested

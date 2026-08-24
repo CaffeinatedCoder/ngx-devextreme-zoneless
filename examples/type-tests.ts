@@ -9,6 +9,8 @@ import { DxChartComponent } from 'devextreme-angular/ui/chart';
 import { DxDataGridComponent } from 'devextreme-angular/ui/data-grid';
 import { DxFormComponent } from 'devextreme-angular/ui/form';
 import { DxPopupComponent } from 'devextreme-angular/ui/popup';
+import { DxFilterBuilderComponent } from 'devextreme-angular/ui/filter-builder';
+import { DxLookupComponent } from 'devextreme-angular/ui/lookup';
 import { DxTextBoxComponent } from 'devextreme-angular/ui/text-box';
 import { DxTreeListComponent } from 'devextreme-angular/ui/tree-list';
 import type {
@@ -33,6 +35,11 @@ import {
     onDxWidgetReady,
 } from 'ngx-devextreme-zoneless';
 import type { LoadOptions } from 'devextreme/common/data';
+import type { Field } from '@angular/forms/signals';
+import type {
+    DxNumberBoxFieldStateDirective,
+    DxTextBoxFieldStateDirective,
+} from 'ngx-devextreme-zoneless/forms';
 
 declare function expectType<T>(value: T): void;
 declare const textBox: DxTextBoxComponent;
@@ -205,3 +212,48 @@ inInjectionContext(() => {
     /* The loadOptions serializer accepts LoadOptions and yields URLSearchParams. */
     expectType<URLSearchParams>(dxLoadOptionsParams({ skip: 0, take: 10 }));
 });
+
+/* ------------------------------------------------------------------------ *
+ * Signal Forms seam (`ngx-devextreme-zoneless/forms`)
+ * ------------------------------------------------------------------------ */
+
+/* `DxFieldStateDirectiveBase` reaches these four options through a type
+ * parameter, so the write site casts and nothing checks the names there. A
+ * vendor rename of any of them must fail this file instead of shipping. */
+const editorReadOnlyOption: DxHostOptionName<DxTextBoxComponent> = 'readOnly';
+const editorIsValidOption: DxHostOptionName<DxTextBoxComponent> = 'isValid';
+const editorValidationStatusOption: DxHostOptionName<DxTextBoxComponent> = 'validationStatus';
+const editorValidationErrorsOption: DxHostOptionName<DxTextBoxComponent> = 'validationErrors';
+
+/* The directive writes widget options rather than the wrapper's `@Input()`s
+ * because `DxLookupComponent`'s generated wrapper omits `readOnly` while the
+ * widget itself inherits it from `EditorOptions`. This pin is what keeps that
+ * route honest: it asserts the option exists on the *widget*, which is what the
+ * write actually targets. */
+const lookupReadOnlyOption: DxHostOptionName<DxLookupComponent> = 'readOnly';
+
+/* dx-filter-builder is excluded from the family because it extends
+ * `WidgetOptions`, not `EditorOptions`, and carries none of this surface. If a
+ * vendor release gives it one, this line starts compiling and the family should
+ * grow to include it. */
+// @ts-expect-error — dx-filter-builder is not an Editor and has no isValid
+const filterBuilderIsValidOption: DxHostOptionName<DxFilterBuilderComponent> = 'isValid';
+
+/* No editor declares a `required` option — the gap is documented, not silently
+ * unimplemented. This line failing to error means DevExtreme grew one and the
+ * directive should start writing it. */
+// @ts-expect-error — no DevExtreme editor has a `required` option
+const editorRequiredOption: DxHostOptionName<DxTextBoxComponent> = 'required';
+
+/* The point of the seam: the field type is checked here even though
+ * `[formField]` had to be cast with `$any()` on this family. */
+declare const textBoxFieldState: DxTextBoxFieldStateDirective;
+expectType<Field<string>>(textBoxFieldState.dxFieldState());
+expectType<'touched' | 'always'>(textBoxFieldState.dxFieldStateShowErrors());
+
+declare const numberBoxFieldState: DxNumberBoxFieldStateDirective;
+expectType<Field<number | null>>(numberBoxFieldState.dxFieldState());
+
+declare const stringField: Field<string>;
+// @ts-expect-error — a string field cannot drive a number box
+expectType<Field<number | null>>(stringField);

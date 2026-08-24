@@ -18,6 +18,13 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
 const readout = (page: Page, id: string): Locator => page.getByTestId(id);
 const input = (page: Page, id: string): Locator =>
     page.locator(`#${id} input.dx-texteditor-input`);
+/*
+ * The widget's rendered validation message. `.dx-invalid-message` alone is
+ * ambiguous — DevExtreme puts that class on both the overlay root and its
+ * wrapper — so the assertion targets the content element they share.
+ */
+const validationMessage = (page: Page, id: string): Locator =>
+    page.locator(`#${id} .dx-invalid-message .dx-overlay-content`);
 
 test.beforeEach(async ({ page }) => {
     await page.goto('/forms');
@@ -153,5 +160,93 @@ test.describe('widget re-creation', () => {
         await input(page, 'form-name').fill('after-recreate');
         await input(page, 'form-name').blur();
         await expect(readout(page, 'name-value')).toHaveText('string:after-recreate');
+    });
+});
+
+test.describe('[dxFieldState]: the state the CVA drops', () => {
+    /*
+     * The companion directive, on the same element as `[formField]`. It cannot
+     * claim the `formField` binding itself: the template type-checker stops
+     * treating an element as a form control as soon as a directive that is not
+     * Angular's own field directive declares a binding property by that name —
+     * and the runtime `control` instruction is keyed on the same condition, so
+     * claiming it would silently disable the value binding along with the
+     * spurious type error. That was measured, not assumed, which is why the
+     * first case here guards it.
+     */
+
+    test('the vendor CVA still carries the value beside it', async ({ page }) => {
+        await input(page, 'fs-email').pressSequentially('a@b.com');
+        await input(page, 'fs-email').blur();
+        await expect(readout(page, 'email-value')).toHaveText('string:a@b.com');
+    });
+
+    test('errors are held back until the field is touched', async ({ page }) => {
+        // Required and empty, so the field is invalid from the first render…
+        await expect(readout(page, 'email-errors')).toHaveText('required');
+        await expect(readout(page, 'email-touched')).toHaveText('false');
+        // …and the widget shows nothing, because the default policy waits for blur.
+        await expect(page.locator('#fs-email')).not.toHaveClass(/dx-invalid/);
+
+        await input(page, 'fs-email').focus();
+        await input(page, 'fs-email').blur();
+        await expect(readout(page, 'email-touched')).toHaveText('true');
+        await expect(page.locator('#fs-email')).toHaveClass(/dx-invalid/);
+    });
+
+    test('the message reaches the widget’s own validation UI, per error', async ({ page }) => {
+        await input(page, 'fs-email').focus();
+        await input(page, 'fs-email').blur();
+        await expect(validationMessage(page, 'fs-email')).toHaveText('Email is required');
+
+        // A different rule on the same field must render its own message, which
+        // is what proves the mapping is per-error rather than a fixed string.
+        await input(page, 'fs-email').pressSequentially('abc');
+        await input(page, 'fs-email').blur();
+        await expect(validationMessage(page, 'fs-email')).toHaveText('At least 5 characters');
+    });
+
+    test('a valid value clears the widget’s error state', async ({ page }) => {
+        await input(page, 'fs-email').pressSequentially('abc');
+        await input(page, 'fs-email').blur();
+        await expect(page.locator('#fs-email')).toHaveClass(/dx-invalid/);
+
+        await input(page, 'fs-email').fill('abcdef');
+        await input(page, 'fs-email').blur();
+        await expect(readout(page, 'email-errors')).toHaveText('none');
+        await expect(page.locator('#fs-email')).not.toHaveClass(/dx-invalid/);
+    });
+
+    test('dxFieldStateShowErrors="always" renders before any interaction', async ({ page }) => {
+        await expect(readout(page, 'code-touched')).toHaveText('false');
+        await expect(page.locator('#fs-code')).toHaveClass(/dx-invalid/);
+        await expect(validationMessage(page, 'fs-code')).toHaveText('Code is required');
+    });
+
+    test('readonly reaches the widget, which the CVA never did', async ({ page }) => {
+        await expect(readout(page, 'note-readonly')).toHaveText('false');
+        await expect(page.locator('#fs-note')).not.toHaveClass(/dx-state-readonly/);
+
+        await readout(page, 'lock-toggle').click();
+        await expect(readout(page, 'note-readonly')).toHaveText('true');
+        await expect(page.locator('#fs-note')).toHaveClass(/dx-state-readonly/);
+
+        await readout(page, 'lock-toggle').click();
+        await expect(page.locator('#fs-note')).not.toHaveClass(/dx-state-readonly/);
+    });
+
+    test('the seam is not text-box-only', async ({ page }) => {
+        /*
+         * Deliberately on the `always` policy: this case is about a non-text-box
+         * family getting the same writes, so it must not restate the touched gate
+         * that its own case above already pins.
+         */
+        await expect(page.locator('#fs-category')).toHaveClass(/dx-invalid/);
+        await expect(validationMessage(page, 'fs-category')).toHaveText('Pick a category');
+
+        await page.locator('#fs-category').click();
+        await page.locator('.dx-list-item', { hasText: 'Shipped' }).click();
+        await expect(readout(page, 'category-value')).toHaveText('string:Shipped');
+        await expect(page.locator('#fs-category')).not.toHaveClass(/dx-invalid/);
     });
 });

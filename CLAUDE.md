@@ -18,7 +18,7 @@ tree-shakes; v2.1 added `dxRemoteStore`; v3.0 closed six defects and widened the
 protocol coverage.
 
 ## Stack
-Angular ≥20 <23 (built against 22, zoneless) · DevExtreme / devextreme-angular ≥26.1 (built against
+Angular ≥22.1 <23 (built against 22.1.3, zoneless) · DevExtreme / devextreme-angular ≥26.1 (built against
 26.1.4) · TypeScript 6.0 `strict`, zero `any` in the public surface · ng-packagr · Playwright
 
 ## Structure
@@ -281,6 +281,9 @@ implementation. These facts are pinned **by measurement**, not by vendor documen
 
 - **A per-family entry point imports only the `devextreme-angular/ui/<widget>` modules it adapts.**
   One stray import re-couples the families and the probe fails — which is the probe working
-- Peer ranges are `@angular/core >=20 <23`, `devextreme`/`devextreme-angular >=26.1`. A version bump
+- Peer ranges are `@angular/core >=22.1 <23`, `devextreme`/`devextreme-angular >=26.1`, plus
+  `@angular/forms >=22.1 <23` as an *optional* peer for the `forms` entry point. The Angular floor is
+  22.1 because that is what CI exercises — an advertised range no gate runs is not a claim this repo
+  makes. A version bump
   is a peer-range edit plus a green CI run; a red run is the compatibility net doing its job. The
   `'canceled'` token and the untyped `DataSource` internals are the two version-sensitive spots

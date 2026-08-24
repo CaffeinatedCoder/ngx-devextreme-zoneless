@@ -31,9 +31,15 @@
     "release": "npm run verify && cd dist && npm publish --access public"
   },
   "peerDependencies": {
-    "@angular/core": ">=20.0.0 <23.0.0",
+    "@angular/core": ">=22.1.0 <23.0.0",
+    "@angular/forms": ">=22.1.0 <23.0.0",
     "devextreme": ">=26.1.0",
     "devextreme-angular": ">=26.1.0"
+  },
+  "peerDependenciesMeta": {
+    "@angular/forms": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@angular/build": "^22.1.3",

@@ -24,7 +24,7 @@ Angular signal  ──effect──▶  widget option / method
 Angular signal  ◀──set────  widget event (optionChanged, selectionChanged, …)
 ```
 
-- **Angular** ≥ 20 < 23 (built and verified against Angular 22, zoneless by default)
+- **Angular** ≥ 22.1 < 23 (built and verified against Angular 22.1.3, zoneless by default)
 - **DevExtreme / devextreme-angular** ≥ 26.1 (built and verified against 26.1.4)
 - **TypeScript** 6.0, `strict`, zero `any` in the public surface
 
@@ -178,6 +178,90 @@ DevExtreme charts do not select points on click by themselves (their demos
 wire `onPointClick: e => e.target.select()` manually), so these directives
 toggle the clicked point's selection by default — opt out with
 `[dxPointClickToggle]="false"` if you want to handle `onPointClick` yourself.
+
+### Signal Forms — `[dxFieldState]`
+
+<sup>Requires `@angular/forms` (an optional peer). Import from
+`ngx-devextreme-zoneless/forms`, which is **not** re-exported by the main entry
+point — that is what keeps `@angular/forms` optional for everyone else.</sup>
+
+Angular's `[formField]` already works on a DevExtreme editor, and this package
+deliberately does not reimplement it: every editor registers its own
+`NG_VALUE_ACCESSOR`, and `[formField]` resolves a registered
+`ControlValueAccessor` ahead of anything else on the element. Value, `touched`
+and `disabled` therefore cross on their own — measured, and pinned by
+`e2e/forms.spec.ts`.
+
+What does *not* cross is everything a `ControlValueAccessor` has no hook for.
+`[dxFieldState]` writes that into the widget's own validation UI:
+
+| Field state | Reaches the widget via | Notes |
+|---|---|---|
+| `value` (both directions) | the vendor CVA | on the widget's `valueChangeEvent`, which defaults to `change` (i.e. blur) |
+| `touched` | the vendor CVA | on blur |
+| `disabled` | the vendor CVA | `setDisabledState` → `dx-state-disabled` |
+| `readonly` | **`[dxFieldState]`** | → the widget's `readOnly` option |
+| `errors` | **`[dxFieldState]`** | → `isValid` + `validationErrors`, rendered by the widget's native message UI |
+| `pending` | **`[dxFieldState]`** | → `validationStatus: 'pending'` for async validators |
+| `required` | *nowhere* | DevExtreme has no editor-level `required` option — see below |
+
+```html
+<dx-text-box
+    [formField]="$any(profile.email)"
+    [dxFieldState]="profile.email"
+/>
+```
+
+**Why the field is named twice, and why `$any()`.** Angular synthesises one
+input assignment per name from a fixed list of 17 (`maxLength`, `min`, `max`,
+`readonly`, `required`, …) onto whichever of those names a form-control host
+declares. DevExtreme's generated wrappers collide by name with incompatible
+types, so `[formField]` fails `strictTemplates` on nine editor families — a
+false positive, since nothing is written to those properties on a non-native
+host, but not one a consumer can suppress. A directive of ours *could* suppress
+it by claiming the `formField` binding, and must not: the runtime instruction
+that makes `[formField]` work at all is keyed on the same condition, so claiming
+the name silently disables the value binding along with the spurious error.
+
+Passing the field to `[dxFieldState]` is what buys the type safety back. It is
+typed to each family's real value type — the same types as `[(dxValue)]` above —
+so a mismatched field is a compile error at that binding even though
+`[formField]` was cast away:
+
+```html
+<!-- compile error: a string field cannot drive a number box -->
+<dx-number-box [formField]="$any(profile.name)" [dxFieldState]="profile.name" />
+```
+
+**Errors wait for blur by default.** `dxFieldStateShowErrors` is `'touched'`
+unless you set it to `'always'`, so a pristine form does not render every
+`required` rule as an error on load.
+
+**`required` is not mirrored, and that is a vendor limit rather than an
+omission.** No DevExtreme editor declares a `required` option (checked against
+26.1.4). The vendor's own mechanisms are `dxValidator` setting `aria-required`
+as a side effect of having a `RequiredRule` configured, and `dxForm`'s
+item-level `isRequired` drawing an asterisk on the *label*, which exists only
+inside a Form. A required field surfaces here the way every other rule does:
+through the error it raises when violated.
+
+Available on all 18 editor families that carry DevExtreme's `Editor` validation
+surface. `dx-filter-builder` is excluded — it extends `WidgetOptions`, not
+`EditorOptions`, and has none of these options.
+
+**One owner for the value.** Do not put `[(dxValue)]` and `[formField]` on the
+same editor — they are two writers of the same option. Angular 22.1.3 added a
+diagnostic that reports forbidden two-way bindings on an element where
+`FormField` is applied, so this is now diagnosed rather than merely discouraged.
+Use `[(dxValue)]` outside Signal Forms, and `[formField]` + `[dxFieldState]`
+inside them.
+
+**Debounce ownership.** The widget's `valueChangeEvent` sits *upstream* of
+Signal Forms' `debounce()`: with the default `change`, the model is only updated
+on blur, so there is nothing left to debounce. Set
+`valueChangeEvent="input"` on the editor and let Signal Forms own the debounce
+policy — do not also reach for `dxValueDebounce`, which belongs to the
+`[(dxValue)]` path, not this one.
 
 ## Composition API
 
@@ -487,6 +571,7 @@ ngx-devextreme-zoneless/navigation → [(dxSelectedIndex)], [(dxOpened)], …
 ngx-devextreme-zoneless/overlays   → [(dxVisible)] directives
 ngx-devextreme-zoneless/data       → grid/form/scheduler/tree directives
 ngx-devextreme-zoneless/visualization → chart selection, range selector
+ngx-devextreme-zoneless/forms      → [dxFieldState] (Signal Forms; NOT re-exported by the main entry)
 ```
 
 Importing from the main entry is fine: bundlers drop the families you don't
