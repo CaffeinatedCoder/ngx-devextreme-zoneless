@@ -135,7 +135,7 @@ coerces the counts when they parse as numbers and deliberately leaves
 `summary` values untouched, because a summary may legitimately be a `min`
 over a string or date column.
 
-## Remote data (`dxRemoteStore`) <sup>developer preview in 2.1</sup>
+## Remote data (`dxRemoteStore`)
 
 For server-side loading, `dxRemoteStore` wraps a load function in a
 `DataSource` and exposes the loading state the widget cannot show for you,

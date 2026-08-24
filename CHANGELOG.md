@@ -131,11 +131,13 @@
   already asked for fresh data. `reload()` now takes the pending change's
   page-0 reset and drops its timer, so the two collapse into one refetch.
 
-  Two requests rather than one is the floor: resetting the page and refetching
-  are separate `DataSource` operations, so a widget sitting off page 0 issues
-  its current-page load before the page-0 one. Collapsing those would mean
-  reaching into the widget's paging controller, which this store deliberately
-  does not do — it owns a `DataSource`, not a grid.
+  The adopted path costs one request or two, not a fixed floor — measured:
+  resetting the page and refetching are separate `DataSource` operations, so a
+  widget sitting off page 0 may issue its current-page load before the page-0
+  one, but the grid's own load scheduling can also collapse that transitional
+  load into the page-0 read alone. Collapsing it deliberately would mean
+  reaching into the widget's paging controller, which this store does not do —
+  it owns a `DataSource`, not a grid.
 
 - **`[(dxSelectedPoints)]` kept selections the chart never made.** A descriptor
   matching no point is silently skipped by the adapter's write, and the
@@ -246,9 +248,30 @@
   template on its own (the forms directives mark for check on value/status
   changes — pinned by e2e); what zone.js actually hides is the non-CVA widget
   state this package covers.
+- **`docs/signal-forms.md` carries the boundary and corner material**: ISO
+  string date models via the widget's own `dateSerializationFormat` (and its
+  traps: format inference needs a string to infer from, the
+  `forceIsoDateParsing` gate, `Date`-instance aliasing on the no-format path),
+  number-box `null`-on-clear against the vendor's `value?: number` typing, the
+  three pinned upstream corners, and why `aria-required` is a one-line
+  consumer recipe rather than a directive feature (no public vendor surface).
+- **`docs/remote-data.md` opens with the loadOptions ecosystem**: who provides
+  what between `devextreme`, `devextreme-angular`, DevExtreme.AspNet.Data's
+  two halves and this package, plus the measured client/server gap table —
+  which loadOptions members the widgets send, which the reference server
+  parses, and who closes each gap.
 
 ### Changed
 
+- **`dxRemoteStore` is stable — the developer-preview marker is dropped.** The
+  API shipped in 2.1.0 is unchanged; what changed is the evidence behind it.
+  This cycle closed its defects (count coercion, the `byKey` cancellation
+  scope, synchronous-throw tracking, reload adopting a pending dependency
+  change), widened the wire-protocol coverage (`parentIds`, `langParams`,
+  grouping and summaries), and pinned the vendor-side guarantees it leans on.
+  The contract — `load`/`byKey` with `AbortSignal`, `resource()` vocabulary,
+  page-ownership semantics — is now a compatibility claim like any other
+  binding's.
 - **Trademark attribution is now the first thing a reader meets.** The notice
   moved from the foot of the README to directly under the badges, and the npm
   `description` carries the same "independent community project — not
@@ -265,11 +288,26 @@
   `[(dxGridState)]` now have reference sections in the smoke app and
   Playwright tests for both directions — each of the four fixes above is
   pinned by a test that fails without it. `[(dxSearchPanelText)]` ships with
-  its own three. Suite: 36 → 55 — the added coverage is the remote grouping
-  half (group descriptor with `isExpanded`, `groupSummary` and `totalSummary`
-  on the wire, envelope summaries rendering), a remote-hierarchy TreeList,
-  the TreeView selection screen with the partial-rejection convergence case,
-  and the abort-ignoring-loader supersede pin.
+  its own three. The remote surface gained the grouping half (group
+  descriptor with `isExpanded`, `groupSummary` and `totalSummary` on the
+  wire, envelope summaries rendering), a remote-hierarchy TreeList, the
+  TreeView selection screen with the partial-rejection convergence case, and
+  the abort-ignoring-loader supersede pin.
+- The pre-release review mutation-tested the earlier fixes: six mutations
+  survived the suite and each case was reworked until its mutation killed
+  exactly it; two turned out to guard unreachable states, and their false
+  justifications were corrected at the source instead of being re-asserted.
+- Signal Forms is certified end to end: value, `touched` and `disabled`
+  across the vendor CVA per editor family; negative pins for what a CVA
+  cannot carry (`readonly`, `required`, errors — a case going red means a
+  vendor release closed the gap); `[dxFieldState]` presenting errors, async
+  `pending` and `hidden` through the widget's own UI, including widget
+  re-creation; the three-way binding comparison screen; ISO date round-trips
+  via `dateSerializationFormat` plus the inference-from-empty trap; and pins
+  for three upstream fragile corners (angular#68076 fixed in 22.0.0,
+  angular#67882 blocked-retry semantics, angular#69635 native keystroke loss
+  — flush-timing-dependent, with the DevExtreme number box measured immune).
+  Suite: 36 → 104.
 
 ## 2.1.0 (2026-08-21)
 
