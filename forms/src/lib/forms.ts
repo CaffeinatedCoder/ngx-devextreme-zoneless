@@ -6,6 +6,7 @@ import type { DxColorBoxComponent } from 'devextreme-angular/ui/color-box';
 import type { DxDateBoxComponent } from 'devextreme-angular/ui/date-box';
 import type { DxDateRangeBoxComponent } from 'devextreme-angular/ui/date-range-box';
 import type { DxDropDownBoxComponent } from 'devextreme-angular/ui/drop-down-box';
+import type { DxFileUploaderComponent } from 'devextreme-angular/ui/file-uploader';
 import type { DxHtmlEditorComponent } from 'devextreme-angular/ui/html-editor';
 import type { DxLookupComponent } from 'devextreme-angular/ui/lookup';
 import type { DxNumberBoxComponent } from 'devextreme-angular/ui/number-box';
@@ -217,6 +218,22 @@ export class DxHtmlEditorFieldStateDirective extends DxFieldStateDirectiveBase<
     }
 }
 
+/**
+ * `dx-file-uploader` extends `Editor` like the rest of the family, and its
+ * `_optionChanged` falls through to the base for every validation option, so
+ * the field's state renders through the same `_renderValidationState()` path
+ * (verified against 26.1.4). Its value is the picked `File[]`.
+ */
+@Directive({ selector: 'dx-file-uploader[dxFieldState]', exportAs: 'dxFieldState' })
+export class DxFileUploaderFieldStateDirective extends DxFieldStateDirectiveBase<
+    DxFileUploaderComponent,
+    readonly File[]
+> {
+    constructor() {
+        super(injectDxHost<DxFileUploaderComponent>());
+    }
+}
+
 /** All editor `[dxFieldState]` directives, for convenient bulk import. */
 export const DX_FIELD_STATE_DIRECTIVES = [
     DxAutocompleteFieldStateDirective,
@@ -226,6 +243,7 @@ export const DX_FIELD_STATE_DIRECTIVES = [
     DxDateBoxFieldStateDirective,
     DxDateRangeBoxFieldStateDirective,
     DxDropDownBoxFieldStateDirective,
+    DxFileUploaderFieldStateDirective,
     DxHtmlEditorFieldStateDirective,
     DxLookupFieldStateDirective,
     DxNumberBoxFieldStateDirective,

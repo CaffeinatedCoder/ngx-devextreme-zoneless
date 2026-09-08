@@ -9,12 +9,13 @@ Publishing is triggered by pushing a `v*` tag: the workflow publishes to npm via
 publishing, with provenance. There is no undo — `package@version` can never be reused, even after an
 unpublish. Everything below happens **before** the tag.
 
-## 1. Gates, all three
+## 1. Gates, all four
 
 ```bash
 npm run verify   # build + type contract
 npm run e2e      # the full suite, not a subset
 npm run probe    # entry-point isolation
+npm run ssr      # server render of every screen — the same app, on Node
 ```
 
 Route them through `verify-runner`. The e2e suite is the release claim — a subset run is not

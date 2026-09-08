@@ -30,6 +30,14 @@
 
 ### Fixed
 
+- **The chart selection adapters no longer throw on the server.** DevExtreme
+  builds every viz widget as an empty stand-in when there is no `window`
+  (`isServerSide ? getEmptyComponent()` in the viz base, 26.1.4), whose
+  public methods return nothing; `[(dxSelectedPoints)]`'s initial read called
+  `getAllSeries().flatMap(…)` on it from the stand-in's `initialized` timer —
+  outside Angular's error handling, as an uncaught exception, which is fatal
+  to a Node server by default. The adapter now reads an empty selection from
+  the stand-in. Found by the new server-render measurement below.
 - **A directive no longer drags sibling widgets into a lazy route's closure.**
   Every family entry point imported the wrapper class of each widget it adapts
   — `import { DxDataGridComponent } from 'devextreme-angular/ui/data-grid'` —
@@ -96,9 +104,11 @@
   - **`[(dxVisualRange)]`** for `dx-chart`: the argument axis' visual range,
     what zoom and pan change, so charts can share a window or a zoom can be
     restored. The chart writes it back through the regular setter on every
-    zoom (verified: `_notifyVisualRange` → `option('argumentAxis.visualRange', …)`),
-    and normalizes what it is handed, so the adapter re-reads after each write.
-    `DxChartVisualRange` is exported.
+    zoom (verified: `_notifyVisualRange` → `option('argumentAxis.visualRange', …)`)
+    in whichever shape the option holds; a written range is applied verbatim
+    (measured: pair or object, in or out of the data range, read back
+    unchanged), so there is no post-write re-read. `DxChartVisualRange` is
+    exported.
   - **Selection breadth**: `[(dxSelectedItemKeys)]` for `dx-tabs`,
     `dx-accordion` and `dx-button-group`; `[(dxSelectedIndex)]`
     for `dx-multi-view` and `dx-stepper`; `[(dxPageIndex)]` / `[(dxPageSize)]`
@@ -115,6 +125,78 @@
   hosting the current element, without naming its class — so the wrapper can
   stay a type-only import. The caller names the type; the directive's selector
   is what makes it true. This is what every shipped directive now uses.
+- **Fifteen more bindings, closing the demand-driven backlog** — every one
+  with a smoke row and both-direction e2e (`e2e/demand-driven.spec.ts`), and
+  every vendor claim below verified against 26.1.4 before the adapter was
+  written.
+  - **`[(dxValue)]` for `dx-file-uploader`** (`readonly File[]`): the picked
+    files. The widget assigns a fresh array on every pick, drop and removal,
+    so nothing is shared; `[]` clears the list, and a written list renders
+    but never uploads. `[dxFieldState]` covers it too — it extends `Editor`
+    and inherits the validation rendering unchanged.
+  - **`[(dxZoomLevel)]` for `dx-calendar`** (`DxCalendarZoomLevel`): the view
+    shown, drill-up and drill-down. The widget clamps a written level to
+    `minZoomLevel`/`maxZoomLevel` with a second setter call from inside its
+    change handler, which the engine's latch drops, so the adapter re-reads
+    after each write — proven by stripping it: a write of `'century'` past a
+    `minZoomLevel` of `'year'` then leaves the signal on `'century'` over a
+    year view.
+  - **`[(dxInputFieldText)]` for `dx-chat`** (`string`, with
+    `dxInputFieldTextDebounce`): the draft. The chat's text area forwards
+    every keystroke to the option, and sending resets it through the same
+    setter.
+  - **`[(dxWidth)]` and `[(dxHeight)]` for `dx-resizable`** (`DxResizableSize`,
+    each with a debounce input): written live on every pointer move of a drag
+    (`_updateDimensions` → `option({ width })`), applied through the standard
+    dimension pipeline.
+  - **`[(dxItemSizes)]` and `[(dxCollapsedItems)]` for `dx-splitter`**: the
+    panes' pixel sizes and the collapsed set. The splitter is the one widget in
+    the catalog whose size write-back is *silent* — at the end of a drag it
+    re-measures every pane and stores `items[i].size` through
+    `Options.silent()`, raising no `optionChanged` — so the sizes adapter
+    listens to `resizeEnd`, the collapse events and `contentReady` and reads
+    `option('items')`; a written size is re-measured silently again, so it
+    re-reads after each write. Proven both ways: dropping `resizeEnd` leaves a
+    drag unobserved, and dropping the re-read leaves a size written below
+    `minSize` in the signal while the pane shows the clamp. Collapse writes go
+    through the regular setter. Sizes are `undefined` before the first layout,
+    like the chart's range.
+  - **`[(dxFocusedRowIndex)]` for `dx-data-grid` and `dx-tree-list`**
+    (`number`, `-1` when none): the render-relative counterpart of
+    `[(dxFocusedRowKey)]`. The keyboard controller writes it through the
+    setter on every click and arrow key, but pre-positions silently during
+    virtual-scroll navigation and resets it through a data operation when
+    paging invalidates the focused key — the family's `contentReady` re-read
+    covers both. `focusedColumnIndex` deliberately has no directive: its
+    change handler is a no-op marker, so a write would move nothing; it is a
+    `dxOptionSignal` readout.
+  - **CardView**: `[(dxSelectedCardKeys)]`, `[(dxPageIndex)]`, `[(dxPageSize)]`,
+    `[(dxFilterValue)]` and `[(dxSearchPanelText)]` for `dx-card-view`. It is
+    not built on the grids' core, but every two-way state is an
+    `OptionsController.twoWay()` whose setter is a real `option()` write, it
+    fires `contentReady` after every load and exposes `pageIndex()`,
+    `pageSize()` and `searchByText()`, so the grid bases apply unchanged. Keys
+    that match no card are dropped asynchronously and written back through
+    the setter, which the binding folds in as it would any user change. There
+    is no focused-card option to bind.
+  - **FileManager**: `[(dxCurrentPathKeys)]`, `[(dxSelectedItemKeys)]` and
+    `[(dxFocusedItemKey)]` for `dx-file-manager`. All three are top-level
+    options written through the setter on every gesture; a path that does not
+    resolve is corrected back through the same setter once the directory load
+    fails, so the correction arrives as an ordinary change.
+  - **`[(dxValueAxisVisualRange)]` for `dx-chart`**: the value axis' range,
+    what a vertical zoom or pan changes — the same `_notifyVisualRange`
+    write-back, verbatim apply and full-range-on-render as the argument axis,
+    on the `valueAxis.visualRange` path (or `valueAxis[0].visualRange` when
+    the axis is configured as an array, which is the branch the chart itself
+    takes). `DxChartValueAxisVisualRange` is exported. Measuring it corrected
+    the argument-axis entry above: the chart does not normalize a written
+    range on either axis, and a re-read that the first cut had justified with
+    that claim was inert and is gone.
+  - **Not bindable, and now documented as such**: the scheduler's
+    `selectedCellData` is written by the widget but ignored on the way in (its
+    workspace's change handler is a no-op), so a two-way directive would drop
+    half of its contract; `dxOptionSignal` is the readout.
 
 ### Tests
 
@@ -127,7 +209,7 @@
   `[(dxCurrentDate)]`/`[(dxCurrentView)]` and `[(dxSelectedPoints)]` directive the
   binding screen does not, with both directions asserted per widget
   (`e2e/coverage.spec.ts`), and `/forms-coverage` presents an always-invalid,
-  switchable-to-read-only field through `[dxFieldState]` on all 18 editors
+  switchable-to-read-only field through `[dxFieldState]` on all 19 editors
   (`e2e/forms-coverage.spec.ts`). Where a gesture would test DevExtreme's own
   pointer handling rather than the binding — the filter builder's inline
   editors, the range selector's SVG sliders, the date range box's masked
@@ -152,6 +234,27 @@
   breaking: restoring one value import in `data` turns both halves red in one
   run — the scan names the FESM line, and the TreeView chunk's closure grows
   from 1,081,606 B to 2,887,294 B with the grid inside it.
+- **Server-side rendering is measured, not assumed.** `npm run ssr` — a CI
+  step — builds the smoke app with a server entry (`smoke/src/main.server.ts`:
+  the same shell, zoneless, under `@angular/platform-server` with the vendor's
+  `DxServerModule`) and renders all six screens in Node
+  (`scripts/ssr-check.mjs`). The pinned state: every screen bootstraps,
+  becomes stable, renders its readouts, raises nothing through Angular's
+  `ErrorHandler`, and nothing fires after the platform is destroyed. Three
+  findings on the way there, each of which the check would now report:
+  devextreme-angular constructs every widget in `ngOnInit` on the server too
+  (nothing is platform-gated; only the wrappers' `ngSkipHydration` is); without
+  `DxServerModule` the widgets' Inferno-rendered parts reach for a global
+  `document`, and the three grid-bearing screens never settle; and the viz
+  widgets are empty stand-ins there (the fix above). `renderApplication`
+  would have turned each of these into a bare timeout, so the check drives
+  the platform directly and reports settle state, errors and the document
+  separately per screen. The shell reads its path through `PlatformLocation`
+  now rather than the global `location`, which is what let it render at all.
+  Nothing is served or hydrated; the run exists so that a vendor or Angular
+  change to any of this turns CI red.
+- The suite grew from 207 to 240 cases with `e2e/demand-driven.spec.ts` and
+  the file uploader's `[dxFieldState]` row.
 
 ### Docs
 
@@ -163,7 +266,10 @@
   semantics worth stating (deferred selection, editing state, the chart's
   full-range initial value, the pager's 1-based index); `docs/remote-data.md`
   the loaded-data signals and the entry-point move; `docs/development.md` the
-  six smoke screens.
+  six smoke screens, the `ssr` gate and what it measured.
+- `docs/directives.md` names the options that are read-only by vendor design
+  (`selectedCellData`, `focusedColumnIndex`) and the composition-API route for
+  them, so "no directive" reads as a decision rather than a gap.
 
 ### Not in this release, by decision
 
@@ -171,11 +277,11 @@
   (a key write did not move the tab), and was withdrawn rather than shipped
   unproven: a tab panel's selection is single by construction and
   `[(dxSelectedIndex)]` already owns it.
-- CardView, FileManager, FileUploader, Splitter, Resizable, Chat, the scheduler's
-  `selectedCellData` and the calendar's `zoomLevel` have bindable state
-  (verified against 26.1.4) and no directive yet; they are recorded as
-  demand-driven backlog. Map centre/zoom, Diagram and ScrollView are not
-  bindable — silent setters or methods only.
+- Map centre/zoom, Diagram and ScrollView are not bindable — silent setters or
+  methods only. The scheduler's `selectedCellData` and the grids'
+  `focusedColumnIndex` are read-only by vendor design (see Added).
+- CRUD on `dxRemoteStore` stays deferred by the remote-data scope decision,
+  and a `testing` entry point waits for demand.
 - No `ng update` migration: the breaking change moves four symbols' import path,
   a one-line edit, and the main entry keeps exporting them unchanged.
 

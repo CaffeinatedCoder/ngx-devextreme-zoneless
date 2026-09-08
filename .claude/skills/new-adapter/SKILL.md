@@ -67,5 +67,7 @@ does not exist as far as users are concerned. Then `CHANGELOG.md`.
 
 ## Close
 
-`npm run verify`, `npm run e2e` (the full suite), `npm run probe`. Route them through the
+`npm run verify`, `npm run e2e` (the full suite), `npm run probe`, `npm run ssr` — the last one
+because an adapter's read at attach also runs on the server, where DevExtreme's viz widgets are empty
+stand-ins whose methods return nothing. Route them through the
 `verify-runner` agent.

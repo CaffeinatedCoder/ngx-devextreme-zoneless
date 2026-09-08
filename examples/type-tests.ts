@@ -5,10 +5,18 @@
  * compiling — either indicates a breaking change in the type system.
  */
 import { signal } from '@angular/core';
+import { DxCalendarComponent } from 'devextreme-angular/ui/calendar';
+import { DxCardViewComponent } from 'devextreme-angular/ui/card-view';
 import { DxChartComponent } from 'devextreme-angular/ui/chart';
+import { DxChatComponent } from 'devextreme-angular/ui/chat';
 import { DxDataGridComponent } from 'devextreme-angular/ui/data-grid';
+import { DxFileManagerComponent } from 'devextreme-angular/ui/file-manager';
+import { DxFileUploaderComponent } from 'devextreme-angular/ui/file-uploader';
 import { DxFormComponent } from 'devextreme-angular/ui/form';
 import { DxPopupComponent } from 'devextreme-angular/ui/popup';
+import { DxResizableComponent } from 'devextreme-angular/ui/resizable';
+import { DxSchedulerComponent } from 'devextreme-angular/ui/scheduler';
+import { DxSplitterComponent } from 'devextreme-angular/ui/splitter';
 import { DxFilterBuilderComponent } from 'devextreme-angular/ui/filter-builder';
 import { DxLookupComponent } from 'devextreme-angular/ui/lookup';
 import { DxTextBoxComponent } from 'devextreme-angular/ui/text-box';
@@ -27,7 +35,10 @@ import type {
     DxNumberRange,
     DxValueDirectiveBase,
     DxChartVisualRange,
+    DxChartValueAxisVisualRange,
+    DxCalendarZoomLevel,
     DxDataChange,
+    DxResizableSize,
 } from 'ngx-devextreme-zoneless';
 import type DataSource from 'devextreme/data/data_source';
 import {
@@ -54,6 +65,7 @@ import type {
     DxDateRangeBoxFieldStateDirective,
     DxDropDownBoxFieldStateDirective,
     DxFieldStateDirectiveBase,
+    DxFileUploaderFieldStateDirective,
     DxHtmlEditorFieldStateDirective,
     DxLookupFieldStateDirective,
     DxNumberBoxFieldStateDirective,
@@ -74,6 +86,7 @@ import type {
     DxDateBoxValueDirective,
     DxDateRangeBoxValueDirective,
     DxDropDownBoxValueDirective,
+    DxFileUploaderValueDirective,
     DxHtmlEditorValueDirective,
     DxLookupValueDirective,
     DxNumberBoxValueDirective,
@@ -283,6 +296,79 @@ const rangeAsPair: DxChartVisualRange = [3, 6];
 // type-checked by name; a filter expression is what it takes.
 const selectionFilter: DxHostOptionValue<Grid, 'selectionFilter'> = ['id', '=', 1];
 
+/* 4.0 demand-driven bindings. Each option a shipped directive names is pinned
+ * against its widget's `Properties` here, because most of these adapters reach
+ * the option through a string or a type parameter and nothing checks the name
+ * at the write site — a vendor rename must fail this file, not a consumer. */
+type CardView = DxCardViewComponent<{ id: number }, number>;
+const cardViewSelectionOption: DxHostOptionName<CardView> = 'selectedCardKeys';
+const cardViewFilterOption: DxHostOptionName<CardView> = 'filterValue';
+/* The widget class declares `extends Widget<Properties>` without forwarding
+ * its own `<TCardData, TKey>` (26.1.4), so the option bag resolves with the
+ * defaults and the key type is `unknown` here; `[(dxSelectedCardKeys)]` is
+ * generic over the consumer's signal instead, like the grids' selection. */
+expectType<unknown[] | undefined>(undefined as DxHostOptionValue<CardView, 'selectedCardKeys'>);
+declare const cardViewInstance_: DxInstanceOf<CardView>;
+expectType<number>(cardViewInstance_.pageIndex());
+expectType<number>(cardViewInstance_.pageSize());
+expectType<(text: string) => void>(cardViewInstance_.searchByText);
+const cardViewContentReadyEvent: DxHostEventName<CardView> = 'contentReady';
+// @ts-expect-error — the card view has no focused-card option; `onFocusedCardChanged` is its only focus surface
+const cardViewFocusOption: DxHostOptionName<CardView> = 'focusedCardKey';
+
+const gridFocusedRowIndexOption: DxHostOptionName<Grid> = 'focusedRowIndex';
+expectType<number | undefined>(undefined as DxHostOptionValue<Grid, 'focusedRowIndex'>);
+const treeListFocusedRowIndexOption: DxHostOptionName<TreeList> = 'focusedRowIndex';
+/* `focusedColumnIndex` exists on the widget and is deliberately left to
+ * `dxOptionSignal`: its change handler is a no-op marker, so a two-way
+ * directive could not honour writes. The pin records that it is a choice. */
+const gridFocusedColumnIndexOption: DxHostOptionName<Grid> = 'focusedColumnIndex';
+
+const fileManagerPathOption: DxHostOptionName<DxFileManagerComponent> = 'currentPathKeys';
+const fileManagerSelectionOption: DxHostOptionName<DxFileManagerComponent> = 'selectedItemKeys';
+const fileManagerFocusOption: DxHostOptionName<DxFileManagerComponent> = 'focusedItemKey';
+expectType<string[] | undefined>(undefined as DxHostOptionValue<DxFileManagerComponent, 'currentPathKeys'>);
+expectType<string | undefined>(undefined as DxHostOptionValue<DxFileManagerComponent, 'focusedItemKey'>);
+
+expectType<File[] | undefined>(undefined as DxHostOptionValue<DxFileUploaderComponent, 'value'>);
+const uploaderIsValidOption: DxHostOptionName<DxFileUploaderComponent> = 'isValid';
+const uploaderReadOnlyOption: DxHostOptionName<DxFileUploaderComponent> = 'readOnly';
+
+const calendarZoomOption: DxHostOptionName<DxCalendarComponent> = 'zoomLevel';
+const calendarZoom: DxCalendarZoomLevel = 'year';
+// @ts-expect-error — the zoom level is a closed union
+const calendarZoomBogus: DxCalendarZoomLevel = 'week';
+
+const chatDraftOption: DxHostOptionName<DxChatComponent> = 'inputFieldText';
+expectType<string | undefined>(undefined as DxHostOptionValue<DxChatComponent, 'inputFieldText'>);
+
+const resizableWidthOption: DxHostOptionName<DxResizableComponent> = 'width';
+const resizableHeightOption: DxHostOptionName<DxResizableComponent> = 'height';
+const resizableSize: DxResizableSize = 300;
+const resizableCssSize: DxResizableSize = '50%';
+
+/* The splitter adapter's events are checked at its declaration site (the
+ * host type is concrete), but the pane shape it reads back is structural, so
+ * the item members it depends on are pinned against the vendor's item type. */
+type Splitter = DxSplitterComponent<{ text: string }, number>;
+const splitterResizeEndEvent: DxHostEventName<Splitter> = 'resizeEnd';
+const splitterCollapsedEvent: DxHostEventName<Splitter> = 'itemCollapsed';
+declare const splitterItem: import('devextreme/ui/splitter').Item;
+expectType<number | string | undefined>(splitterItem.size);
+expectType<boolean | undefined>(splitterItem.collapsed);
+
+const valueAxisRange: DxChartValueAxisVisualRange = { startValue: 0, endValue: 5 };
+const valueAxisPair: DxChartValueAxisVisualRange = [0, 5];
+
+/* The scheduler's `selectedCellData` is an option the widget writes but
+ * ignores on the way in (its workspace's change handler is a no-op), so it
+ * has no two-way directive; the composition API is the route, and this pin
+ * keeps that route typed. */
+const schedulerSelectedCellsOption: DxHostOptionName<DxSchedulerComponent> = 'selectedCellData';
+
+declare const uploaderValueDirective: DxFileUploaderValueDirective;
+expectType<readonly File[]>(uploaderValueDirective.dxValue());
+
 /* `injectDxHost` hands the current element's host back as whatever host type
  * the caller names — the directive's selector is the guarantee, not the type
  * system — and rejects a type that is not a devextreme-angular host at all. It
@@ -401,6 +487,10 @@ const dateRangeBoxAgrees: SameValueType<
 const dropDownBoxAgrees: SameValueType<
     DxDropDownBoxFieldStateDirective,
     DxDropDownBoxValueDirective
+> = true;
+const fileUploaderAgrees: SameValueType<
+    DxFileUploaderFieldStateDirective,
+    DxFileUploaderValueDirective
 > = true;
 const htmlEditorAgrees: SameValueType<
     DxHtmlEditorFieldStateDirective,

@@ -25,6 +25,7 @@ Every value editor gets a `[(dxValue)]` two-way model plus `dxValueDebounce`
 | `dx-select-box`, `dx-lookup`, `dx-drop-down-box`, `dx-radio-group` | generic `TValue` — inferred from your signal |
 | `dx-tag-box` | generic `readonly TKey[]` |
 | `dx-filter-builder` | `DxFilterExpression \| null` |
+| `dx-file-uploader` | `readonly File[]` — the picked files; `[]` clears the list, a written list renders but never uploads |
 | `dx-range-selector` | DevExtreme's declared scale range type |
 
 Where DevExtreme declares `value?: any` (SelectBox & friends) the directive is
@@ -44,6 +45,18 @@ way it closes — outside click, escape, an item pick, tab-out. The widget write
 `opened` through its regular option setter on each user toggle, so this is a
 plain option binding (added in 4.0 for the editors and the drop-down button).
 
+## Editor state beyond `value`
+
+| Selector | Model |
+|---|---|
+| `dx-calendar[dxZoomLevel]` | `DxCalendarZoomLevel` (`'month' \| 'year' \| 'decade' \| 'century'`) — the view shown; drill-up and drill-down both land in the signal |
+| `dx-chat[dxInputFieldText]` | `string` — the draft in the message box, per keystroke; sending resets it to `''`. `dxInputFieldTextDebounce` (ms) debounces widget → signal |
+
+The calendar clamps a written level to `minZoomLevel`/`maxZoomLevel` (the
+vendor's naming: `minZoomLevel` is the furthest it zooms *out*) with a second
+option write from inside its own change handler; the adapter re-reads after
+each write, so the signal converges to the level the calendar actually shows.
+
 ## Selection & data
 
 | Selector | Model |
@@ -53,23 +66,44 @@ plain option binding (added in 4.0 for the editors and the drop-down button).
 | `dx-tree-view[dxSelectedNodeKeys]` | `readonly TKey[]` (method-based: `getSelectedNodeKeys` / `selectItem`) |
 | `dx-tree-view[dxExpandedNodeKeys]` | `readonly TKey[]` — the expanded nodes (method-based: `getNodes` / `expandItem`, `collapseAll`); the complete set, `[]` collapses all |
 | `dx-data-grid[dxSelectionFilter]` | `DxFilterExpression \| null` — deferred selection (`<dxo-selection mode="multiple" [deferred]="true" />`); **`dx-data-grid` only** |
+| `dx-card-view[dxSelectedCardKeys]` | `readonly TKey[]` — keys that match no card are dropped by the widget asynchronously and folded back in |
+| `dx-file-manager[dxCurrentPathKeys]` | `readonly string[]` — the current directory as its key path (`['Docs', 'Docs/Reports']` by default); a path that does not exist is corrected back by the widget |
+| `dx-file-manager[dxSelectedItemKeys]` | `readonly string[]` |
+| `dx-file-manager[dxFocusedItemKey]` | `string \| null` |
 | `dx-gantt[dxSelectedRowKey]` | `TKey \| null` |
 | `dx-scheduler[dxCurrentDate]` | `Date \| number \| string` |
 | `dx-scheduler[dxCurrentView]` | DevExtreme's view union |
 | `dx-form[dxFormData]` | generic `TFormData` — emits a fresh value per field edit; the widget never shares the signal's object |
 
-## Grid state (dx-data-grid and dx-tree-list)
+## Grid state (dx-data-grid, dx-tree-list — and dx-card-view where marked)
 
 | Selector | Model |
 |---|---|
 | `[dxFocusedRowKey]` | `TKey \| null` (requires `focusedRowEnabled`; `null` clears) |
-| `[dxFilterValue]` | `DxFilterExpression \| null` |
-| `[dxPageIndex]`, `[dxPageSize]` | `number` (method-based — paging lives under the nested `paging` option) |
+| `[dxFocusedRowIndex]` | `number` — the focused row's index on the page, `-1` when none (requires `focusedRowEnabled`) |
+| `[dxFilterValue]` ◆ | `DxFilterExpression \| null` |
+| `[dxPageIndex]`, `[dxPageSize]` ◆ | `number` (method-based — paging lives under the nested `paging` option) |
 | `[dxGridState]` | `DxGridState \| null \| undefined` — the full layout state (`state()` / `stateStoring`) |
-| `[dxSearchPanelText]` | `string` — the search panel's phrase (method-based: `searchByText`) |
+| `[dxSearchPanelText]` ◆ | `string` — the search panel's phrase (method-based: `searchByText`) |
 | `dx-tree-list[dxExpandedRowKeys]` | `readonly TKey[]` — the expanded rows (**`dx-tree-list` only**) |
 | `[dxEditingChanges]` | `readonly DxDataChange<TRowData, TKey>[]` — the pending edits of batch/cell editing (`editing.changes`); `[]` discards them |
 | `[dxEditRowKey]` | `TKey \| null` — the row in row/form/popup edit mode (`editing.editRowKey`); a key opens the editor, `null` closes it |
+
+◆ also on `dx-card-view`, which exposes the same `pageIndex()`/`pageSize()`/
+`searchByText()` methods and the same option names although it is not built on
+the grids' core: every one of its two-way states is a real option write and it
+fires `contentReady` after every load, so the grid bases apply unchanged.
+CardView has no focused-card *option* (only an `onFocusedCardChanged` event), so
+there is no focus binding for it.
+
+`[(dxFocusedRowIndex)]` is the render-relative counterpart of
+`[(dxFocusedRowKey)]`: prefer the key where identity across reloads matters.
+The keyboard controller writes the index through the option setter on every
+click and arrow key, but pre-positions silently during virtual-scroll
+navigation and resets it through a data operation when paging invalidates the
+focused key, hence the family's `contentReady` re-read. `focusedColumnIndex`
+has no directive on purpose: its change handler is a no-op marker, so a write
+would move nothing — read it with `dxOptionSignal`.
 
 `[(dxEditingChanges)]` and `[(dxEditRowKey)]` put the grids' editing state on
 signals — the state DevExtreme designed for external ownership (it is how the
@@ -115,9 +149,24 @@ debounced (`dxGridStateDebounce`, default 100 ms).
 | `dx-pagination[dxPageIndex]`, `dx-pagination[dxPageSize]` | `number` — the standalone pager; its `pageIndex` is **1-based**, unlike the grids' |
 | `dx-drawer[dxOpened]`, `dx-drop-down-button[dxOpened]` | `boolean` |
 | `dx-popup`, `dx-popover`, `dx-tooltip`, `dx-toast`, `dx-load-panel`, `dx-action-sheet`, `dx-context-menu` + `[dxVisible]` | `boolean` |
+| `dx-resizable[dxWidth]`, `dx-resizable[dxHeight]` | `DxResizableSize` (`number \| string`) — written live on every pointer move of a drag; `dxWidthDebounce`/`dxHeightDebounce` (ms) |
+| `dx-splitter[dxItemSizes]` | `readonly number[] \| undefined` — the panes' pixel sizes, one per item; `undefined` before the first layout |
+| `dx-splitter[dxCollapsedItems]` | `readonly number[]` — the collapsed panes' indexes as a complete set; `[]` expands all |
 
 `[(dxVisible)]` tracks *every* way an overlay can close (shading click, escape,
 close button, API) — the classic zoneless pain point.
+
+The splitter is the one widget in the catalog whose write-back is *silent*: at
+the end of a drag it re-measures every pane and stores the pixel size into
+`items[i].size` without raising `optionChanged`. `[(dxItemSizes)]` therefore
+listens to `resizeEnd`, `itemCollapsed`/`itemExpanded` and `contentReady` and
+reads `option('items')`; a written size is applied, re-measured (clamped to
+`minSize`/`maxSize`) and stored silently again, so the adapter re-reads after
+each write and the signal converges to the layout the splitter produced. Only
+pixel numbers are modelled — a `'30%'` configured on an item is what the widget
+itself replaces with pixels on first layout — and a splitter that renders
+hidden reports its sizes after its first resize or collapse. The collapse
+handle, by contrast, writes `items[i].collapsed` through the regular setter.
 
 ## Visualization
 
@@ -125,6 +174,7 @@ close button, API) — the classic zoneless pain point.
 |---|---|
 | `dx-chart[dxSelectedPoints]`, `dx-pie-chart[dxSelectedPoints]`, `dx-polar-chart[dxSelectedPoints]` | `readonly DxChartSelectedPoint[]` |
 | `dx-chart[dxVisualRange]` | `DxChartVisualRange \| undefined` — the argument axis' visual range, what zoom and pan change |
+| `dx-chart[dxValueAxisVisualRange]` | `DxChartValueAxisVisualRange \| undefined` — the (first) value axis' visual range, what a vertical zoom or pan changes |
 
 Chart selection is method-based; selected points are exposed as serializable
 `{ seriesName, argument, value }` descriptors that can be stored and restored.
@@ -135,13 +185,21 @@ toggle the clicked point's selection by default — opt out with
 
 `[(dxVisualRange)]` binds `argumentAxis.visualRange`, so several charts can
 share one window or a zoom can be persisted and restored. Enable zooming with
-`<dxo-zoom-and-pan argumentAxis="both" [allowMouseWheel]="true" />`. The chart
-normalizes what it is handed — a `[start, end]` pair is read back as
-`{ startValue, endValue }` — and the adapter re-reads after each write, so the
-signal converges to the chart's representation. Once rendered, the chart
-reports the full data range the same way, so the signal is `undefined` only
-before the first render (and `undefined` means "do not push"). Widget → signal
-reads can be debounced via `dxVisualRangeDebounce`.
+`<dxo-zoom-and-pan argumentAxis="both" [allowMouseWheel]="true" />`. A written
+range is applied verbatim, as a `[start, end]` pair or a
+`{ startValue, endValue }` object (measured: neither shape nor bounds are
+normalized on the way in), and the chart writes its own zoom and pan results
+back in whichever shape the option holds — so the signal keeps the shape you
+gave it. Once rendered, the chart reports the full data range the same way, so
+the signal is `undefined` only before the first render (and `undefined` means
+"do not push"). Widget → signal reads can be debounced via
+`dxVisualRangeDebounce`.
+
+`[(dxValueAxisVisualRange)]` is the same binding for `valueAxis.visualRange`
+(`<dxo-zoom-and-pan valueAxis="both" />`): the chart writes it back through
+the same setter, applies a written range the same way and reports the full
+range once rendered. With several value axes (`<dxi-value-axis>`) it follows
+the first.
 
 ## Components without a dedicated directive
 
@@ -153,3 +211,9 @@ through the [composition API](composition-api.md), whose option names, value
 types and event payloads are computed from the `Properties` declaration of
 whatever host component you hand it. Support does not cliff-edge at this
 catalog; it just gets one notch less sugary.
+
+**Read-only options are not two-way bindings.** Some options a widget writes
+are ignored on the way in: the scheduler's `selectedCellData` (its workspace's
+change handler is a no-op) and the grids' `focusedColumnIndex` (a no-op marker).
+A `[(…)]` directive would silently drop half of its contract there, so none is
+shipped — `dxOptionSignal(host, 'selectedCellData')` is the one-line readout.

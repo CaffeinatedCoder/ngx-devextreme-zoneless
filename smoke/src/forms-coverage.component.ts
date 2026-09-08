@@ -6,6 +6,7 @@ import { DxColorBoxModule } from 'devextreme-angular/ui/color-box';
 import { DxDateBoxModule } from 'devextreme-angular/ui/date-box';
 import { DxDateRangeBoxModule } from 'devextreme-angular/ui/date-range-box';
 import { DxDropDownBoxModule } from 'devextreme-angular/ui/drop-down-box';
+import { DxFileUploaderModule } from 'devextreme-angular/ui/file-uploader';
 import { DxHtmlEditorModule } from 'devextreme-angular/ui/html-editor';
 import { DxLookupModule } from 'devextreme-angular/ui/lookup';
 import { DxNumberBoxModule } from 'devextreme-angular/ui/number-box';
@@ -39,6 +40,7 @@ interface Everything {
     radio: string | null;
     tags: number[];
     html: string;
+    files: File[];
 }
 
 /*
@@ -61,6 +63,7 @@ interface Everything {
         DxDateBoxModule,
         DxDateRangeBoxModule,
         DxDropDownBoxModule,
+        DxFileUploaderModule,
         DxHtmlEditorModule,
         DxLookupModule,
         DxNumberBoxModule,
@@ -98,6 +101,7 @@ interface Everything {
             <dx-radio-group id="fc-radio-group" [dxFieldState]="everything.radio" dxFieldStateShowErrors="always" [items]="statuses" />
             <dx-tag-box id="fc-tag-box" [dxFieldState]="everything.tags" dxFieldStateShowErrors="always" [items]="[1, 2, 3]" />
             <dx-html-editor id="fc-html-editor" [dxFieldState]="everything.html" dxFieldStateShowErrors="always" [height]="80" />
+            <dx-file-uploader id="fc-file-uploader" [dxFieldState]="everything.files" dxFieldStateShowErrors="always" uploadMode="useForm" />
         </div>
     `,
     styles: `
@@ -129,6 +133,7 @@ export class FormsCoverageComponent {
         radio: null,
         tags: [],
         html: '',
+        files: [],
     });
 
     protected readonly everything = form(this.model, (p) => {
@@ -173,5 +178,7 @@ export class FormsCoverageComponent {
         readonlyRule(p.tags, whenReadonly);
         validate(p.html, always);
         readonlyRule(p.html, whenReadonly);
+        validate(p.files, always);
+        readonlyRule(p.files, whenReadonly);
     });
 }

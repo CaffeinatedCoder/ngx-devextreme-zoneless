@@ -17,8 +17,10 @@ central claim.** v2.0 split the package into secondary entry points so a single-
 tree-shakes; v2.1 added `dxRemoteStore`; v3.0 closed six defects and widened the loadOptions
 protocol coverage. v4.0 made every entry point free of widget and data-layer runtime imports (measured
 under code splitting, not assumed), drove every directive — not merely every family — through
-the zoneless app, and added the editing, deferred-selection, expansion, open-state and
-visual-range bindings.
+the zoneless app, added the editing, deferred-selection, expansion, open-state and
+visual-range bindings, then closed the demand-driven backlog (CardView, FileManager, file uploader,
+splitter, resizable, chat, calendar zoom, focused row index, value-axis range) and made server-side
+rendering a measured CI step instead of an open question.
 
 ## Stack
 Angular ≥22.1 <23 (built against 22.1.3, zoneless) · DevExtreme / devextreme-angular ≥26.1 (built against
@@ -51,6 +53,9 @@ grids. A single-FESM layout demonstrably did *not* shake, which is why `npm run 
 - `e2e/` — Playwright specs plus `stub-server.mjs`, a deterministic DevExtreme loadOptions server
   with injectable latency, failures and decimal spelling, and a `__stats` endpoint so protocol
   assertions are made against real HTTP traffic rather than app-side counters
+- `smoke/src/main.server.ts`, `scripts/ssr-check.mjs` — the server-render measurement: the same
+  shell bootstrapped under `@angular/platform-server` (zoneless, with the vendor's `DxServerModule`)
+  and every screen rendered in Node, pinned to "bootstraps, settles, no errors, nothing late".
 - `examples/type-tests.ts` — compile-time contract tests. Never executed; `npm run typecheck:examples`
   fails when a positive assertion stops compiling or a `@ts-expect-error` starts compiling
 - `probe/`, `scripts/bundle-probe.mjs` — the bundle-isolation probe: a static scan of `dist/fesm2022`
@@ -62,14 +67,15 @@ grids. A single-FESM layout demonstrably did *not* shake, which is why `npm run 
 npm run verify      # build (ng-packagr) + type-contract tests — the gate before anything else
 npm run e2e         # Playwright: boots the stub (:4300) and the smoke app (:4299) itself
 npm run probe       # tree-shaking probe — fails if entry-point isolation regressed
+npm run ssr         # server render of every smoke screen in Node — fails on a throw, a hang or a late error
 npm run smoke       # serve the reference app at :4299 for manual poking
 npx playwright test e2e/remote.spec.ts        # one spec
 npx playwright test --reporter=list -g "byKey" # one case by name
 ```
 
 `npm run e2e` starts both servers itself via `webServer` and reuses running ones outside CI — never
-start the stub or the smoke app by hand alongside it. CI runs verify, probe and e2e on every push to
-`main` and every PR.
+start the stub or the smoke app by hand alongside it. CI runs verify, probe, ssr and e2e on every push
+to `main` and every PR.
 
 ## Workflow
 1. **Reproduce before you fix.** Every defect closed in 3.0 was first written as an e2e that failed,
@@ -78,7 +84,7 @@ start the stub or the smoke app by hand alongside it. CI runs verify, probe and 
 2. Read the adapter next to the one you are changing. The families are deliberately repetitive;
    the shape you want almost always already exists
 3. Run `npm run verify` after a type-surface change and `npm run e2e` after a behaviour change.
-   The full suite is ~75 s for 207 cases — there is no reason to guess
+   The full suite is ~80 s for 240 cases — there is no reason to guess
 4. **Prove the test by breaking the fix.** Strip only the fix, confirm the test fails for the
    expected reason, restore. A test that passes with and without the fix asserts nothing
 5. A new directive extends `examples/type-tests.ts` in the same change — that is the enforcement,
@@ -108,8 +114,8 @@ Running one is the default, not an escalation, and **there is no size exemption*
 and a one-fact lookup are exactly the cases where inline feels cheap and is not, because the cost is
 the output you have to read, not the command you have to type.
 
-- **`verify-runner`** — **every `npm run verify`, `npm run e2e`, `npm run probe` and every single
-  Playwright spec.** DevExtreme prints trial-licence (`W0019`, `W0021`) and legacy-component
+- **`verify-runner`** — **every `npm run verify`, `npm run e2e`, `npm run probe`, `npm run ssr` and
+  every single Playwright spec.** DevExtreme prints trial-licence (`W0019`, `W0021`) and legacy-component
   (`W3001`) warnings on every widget on every run, so the verdict is a few lines buried in dozens.
   Returns a pass line, or deduplicated failures with each assertion and the source line it points at
 - **`vendor-archaeologist`** — **any question about what DevExtreme actually does**, answered from
@@ -206,6 +212,16 @@ a moved block leaves a pointer, never a copy.
 - **`undefined` means "do not push".** The pusher effect skips it deliberately, so a signal cannot
   clear a widget option by going `undefined` — use `null` where the widget accepts one. Do not
   "fix" this
+- **Writes made inside the `initialized` handler bypass the widget's change handlers.** The
+  vendor flips `_initialized` only *after* the `initialized` action, and `_notifyOptionChanged` is
+  gated on it, so a binding's initial push is a plain store write the following render reads. That
+  is why a pre-render write of `state(saved)`, `selectedRowKeys` or `items[0].size` is safe — and
+  why a widget's *corrections* to an initial push are never observed as events
+- **The splitter's size write-back is silent.** At the end of a drag it stores `items[i].size`
+  through `Options.silent()` — no `optionChanged` — so `[(dxItemSizes)]` reads on `resizeEnd`,
+  the collapse events and `contentReady`, and re-reads after its own write (the written size is
+  re-measured and stored silently again). Proven by stripping each: an unobserved drag, and a
+  clamped size the signal never learned about
 - **The re-entrancy latch drops the widget's synchronous reaction to our own write — including
   corrections.** A widget that partially rejects a write (TreeView's `selectItem` silently no-ops on
   an unknown key) would diverge from the signal forever, because structural equality then suppresses
@@ -229,6 +245,13 @@ a moved block leaves a pointer, never a copy.
   any other option write (verified against 26.1.3; no silent-setter path for this option exists in
   `grid_core`). `[(dxSearchPanelText)]`'s `contentReady` listener is therefore redundant for every
   known path — it is kept as the family default, not because a defect requires it
+- **On the server, DevExtreme's viz widgets are empty stand-ins.** With no `window` the viz base
+  swaps in `getEmptyComponent()` (26.1.4), whose public methods return nothing, and its
+  `initialized` arrives from a timer — outside Angular's error handling. An adapter that calls a
+  chart method at attach must read "nothing" as an empty value (`getAllSeries() ?? []`), or it is
+  an uncaught exception in a Node server. Every other widget constructs for real on the server;
+  `DxServerModule` is what keeps their Inferno-rendered parts from reaching for a global `document`.
+  Pinned by `npm run ssr`
 - **A widget's `state()` is `{}` until it has rendered.** The binding attaches at `initialized`,
   which is before the first layout, so a naive read captures an empty snapshot and — worse — the
   pusher effect can write it *back*, wiping the layout it exists to restore. `[(dxGridState)]`

@@ -1,11 +1,13 @@
-import { Directive } from '@angular/core';
+import { Directive, input, model } from '@angular/core';
 import type { DxAutocompleteComponent } from 'devextreme-angular/ui/autocomplete';
 import type { DxCalendarComponent } from 'devextreme-angular/ui/calendar';
+import type { DxChatComponent } from 'devextreme-angular/ui/chat';
 import type { DxCheckBoxComponent } from 'devextreme-angular/ui/check-box';
 import type { DxColorBoxComponent } from 'devextreme-angular/ui/color-box';
 import type { DxDateBoxComponent } from 'devextreme-angular/ui/date-box';
 import type { DxDateRangeBoxComponent } from 'devextreme-angular/ui/date-range-box';
 import type { DxDropDownBoxComponent } from 'devextreme-angular/ui/drop-down-box';
+import type { DxFileUploaderComponent } from 'devextreme-angular/ui/file-uploader';
 import type { DxFilterBuilderComponent } from 'devextreme-angular/ui/filter-builder';
 import type { DxHtmlEditorComponent } from 'devextreme-angular/ui/html-editor';
 import type { DxLookupComponent } from 'devextreme-angular/ui/lookup';
@@ -19,12 +21,15 @@ import type { DxTagBoxComponent } from 'devextreme-angular/ui/tag-box';
 import type { DxTextAreaComponent } from 'devextreme-angular/ui/text-area';
 import type { DxTextBoxComponent } from 'devextreme-angular/ui/text-box';
 import {
+    DxBindingDirectiveBase,
     DxOpenedDirectiveBase,
     DxValueDirectiveBase,
+    dxOptionAdapter,
     injectDxHost,
     type DxDateRange,
     type DxDateValue,
     type DxFilterExpression,
+    type DxHostOptionValue,
     type DxNumberRange,
 } from 'ngx-devextreme-zoneless/core';
 
@@ -216,6 +221,89 @@ export class DxFilterBuilderValueDirective extends DxValueDirectiveBase<
 }
 
 /**
+ * `[(dxValue)]` for `dx-file-uploader` — the picked files as a signal. The
+ * widget assigns a fresh array on every pick, drop and removal (`slice()` +
+ * `concat`, verified against 26.1.4), so the signal's array is never mutated
+ * behind its back, and writing `[]` clears the file list. An external write
+ * of a non-empty `File[]` renders those files but never uploads them: the
+ * widget only uploads from its own pick/drop handlers, the upload button and
+ * `upload()`.
+ */
+@Directive({ selector: 'dx-file-uploader[dxValue]', exportAs: 'dxValue' })
+export class DxFileUploaderValueDirective extends DxValueDirectiveBase<
+    DxFileUploaderComponent,
+    readonly File[]
+> {
+    constructor() {
+        super(injectDxHost<DxFileUploaderComponent>(), 'value');
+    }
+}
+
+/* ------------------------------------------------------------------------ *
+ *  Editor state beyond `value` (4.0): the calendar's zoom level and the
+ *  chat's draft text. Both are top-level options the widget writes through
+ *  its regular setter on every user gesture (verified against 26.1.4).
+ * ------------------------------------------------------------------------ */
+
+/** The calendar's zoom level as `dx-calendar` declares it (`'month' | 'year' | 'decade' | 'century'`). */
+export type DxCalendarZoomLevel = Exclude<
+    DxHostOptionValue<DxCalendarComponent, 'zoomLevel'>,
+    undefined
+>;
+
+/**
+ * `[(dxZoomLevel)]` for `dx-calendar` — the view the calendar is showing, so
+ * a year picker can be opened from outside and the user's drill-up (caption
+ * click) and drill-down (picking a year or month) are observed. Both gestures
+ * go through the option setter. The widget clamps a written level to
+ * `minZoomLevel`/`maxZoomLevel` with a *second* setter call from inside its
+ * change handler, which the engine's re-entrancy latch drops, so the adapter
+ * re-reads after each write and the signal converges to the level the
+ * calendar actually shows.
+ */
+@Directive({ selector: 'dx-calendar[dxZoomLevel]', exportAs: 'dxZoomLevel' })
+export class DxCalendarZoomLevelDirective extends DxBindingDirectiveBase {
+    readonly dxZoomLevel = model.required<DxCalendarZoomLevel>();
+
+    constructor() {
+        super();
+        this.bindAdapter<DxCalendarComponent, DxCalendarZoomLevel>(
+            injectDxHost<DxCalendarComponent>(),
+            this.dxZoomLevel,
+            {
+                ...dxOptionAdapter<DxCalendarComponent, 'zoomLevel', DxCalendarZoomLevel>('zoomLevel'),
+                reReadAfterWrite: true,
+            },
+        );
+    }
+}
+
+/**
+ * `[(dxInputFieldText)]` for `dx-chat` — the draft in the message box as a
+ * signal: persist an unsent message, prefill a reply, or clear the box from
+ * outside. The chat's text area runs with `valueChangeEvent: 'input'` and
+ * forwards every keystroke to `option('inputFieldText', …)`, and sending
+ * resets it to `''` through the same setter, so this is a plain option
+ * binding. Widget → signal reads can be debounced via
+ * `dxInputFieldTextDebounce` (default 0), since they arrive per keystroke.
+ */
+@Directive({ selector: 'dx-chat[dxInputFieldText]', exportAs: 'dxInputFieldText' })
+export class DxChatInputFieldTextDirective extends DxBindingDirectiveBase {
+    readonly dxInputFieldText = model.required<string>();
+    readonly dxInputFieldTextDebounce = input(0);
+
+    constructor() {
+        super();
+        this.bindOption<DxChatComponent, string>(
+            injectDxHost<DxChatComponent>(),
+            'inputFieldText',
+            this.dxInputFieldText,
+            { debounceMs: () => this.dxInputFieldTextDebounce() },
+        );
+    }
+}
+
+/**
  * `[(dxOpened)]` adapter directives for the drop-down editors — the popup's
  * open state on a signal, so it can be driven from outside and every way it
  * closes (outside click, escape, item pick, tab-out) is observed. The widget
@@ -301,6 +389,7 @@ export const DX_VALUE_DIRECTIVES = [
     DxDateBoxValueDirective,
     DxDateRangeBoxValueDirective,
     DxDropDownBoxValueDirective,
+    DxFileUploaderValueDirective,
     DxFilterBuilderValueDirective,
     DxHtmlEditorValueDirective,
     DxLookupValueDirective,
@@ -313,4 +402,10 @@ export const DX_VALUE_DIRECTIVES = [
     DxTagBoxValueDirective,
     DxTextAreaValueDirective,
     DxTextBoxValueDirective,
+] as const;
+
+/** The editors' state beyond `value` — calendar zoom level, chat draft text — for bulk import. */
+export const DX_EDITOR_STATE_DIRECTIVES = [
+    DxCalendarZoomLevelDirective,
+    DxChatInputFieldTextDirective,
 ] as const;

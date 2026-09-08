@@ -19,6 +19,12 @@
             "optimization": false,
             "extractLicenses": false,
             "sourceMap": true
+          },
+          "configurations": {
+            "ssr": {
+              "server": "smoke/src/main.server.ts",
+              "ssr": true
+            }
           }
         },
         "serve": {

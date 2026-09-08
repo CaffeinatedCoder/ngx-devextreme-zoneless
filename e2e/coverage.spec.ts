@@ -280,7 +280,10 @@ test.describe('action sheet [(dxVisible)]', () => {
 test.describe('load panel [(dxVisible)]', () => {
     test('signal → widget, then an outside click → signal', async ({ page }) => {
         await readout(page, 'cov-loadpanel-set').click();
-        await expect(page.locator('.dx-loadpanel-content')).toBeVisible();
+        // The file manager on this screen shows its own load panel, inside
+        // `#nb-fm`, while its directory loads; the widget under test is the
+        // page-level one, whose wrapper sits directly under `body`.
+        await expect(page.locator('body > .dx-loadpanel-wrapper .dx-loadpanel-content')).toBeVisible();
         await page.mouse.click(5, 5);
         await expect(readout(page, 'cov-loadpanel-readout')).toHaveText('false');
     });

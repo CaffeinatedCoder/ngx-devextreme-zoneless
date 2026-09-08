@@ -52,7 +52,15 @@ interface ChartSeriesLike {
     getPointsByArg(pointArg: DxChartPointValue): ChartPointLike[];
 }
 interface ChartLike {
-    getAllSeries(): ChartSeriesLike[];
+    /**
+     * Declared as an array by the vendor, but on the server every viz widget
+     * is an empty stand-in (`isServerSide ? getEmptyComponent() : …` in the
+     * viz base, 26.1.4) whose methods return nothing — so the adapter reads
+     * it as possibly absent. Measured by `npm run ssr`: without this the
+     * initial read threw from the stand-in's `initialized` timer, outside
+     * Angular's error handling, as an uncaught exception.
+     */
+    getAllSeries(): ChartSeriesLike[] | undefined;
     clearSelection(): void;
 }
 
@@ -74,7 +82,7 @@ function chartSelectionAdapter<TInstance extends DxWidget & ChartLike>(): DxBind
         // partial-rejection class as TreeView's `selectItem`.
         reReadAfterWrite: true,
         read: (instance) =>
-            instance.getAllSeries().flatMap((series) =>
+            (instance.getAllSeries() ?? []).flatMap((series) =>
                 series
                     .getAllPoints()
                     .filter((point) => point.isSelected())
@@ -90,7 +98,7 @@ function chartSelectionAdapter<TInstance extends DxWidget & ChartLike>(): DxBind
             instance.beginUpdate();
             try {
                 instance.clearSelection();
-                const allSeries = instance.getAllSeries();
+                const allSeries = instance.getAllSeries() ?? [];
                 for (const descriptor of descriptors) {
                     const candidates =
                         descriptor.seriesName === undefined
@@ -226,10 +234,13 @@ export type DxChartVisualRange = NonNullable<
  * adapter; the chart writes it back through the regular option setter on
  * every zoom/pan (`_notifyVisualRange` → `option('argumentAxis.visualRange', …)`,
  * verified against 26.1.4), so `optionChanged` filtered on `argumentAxis`
- * plus `zoomEnd` is the complete set. The chart normalizes what it is handed
- * — a `[start, end]` array is read back as `{ startValue, endValue }` — so
- * the adapter re-reads after each write and the signal converges to the
- * chart's representation. Once rendered, the chart reports the *full* data
+ * plus `zoomEnd` is the complete set. A written range is applied verbatim —
+ * measured: a `[start, end]` pair, a `{ startValue, endValue }` object, and
+ * either one beyond the data range all read back unchanged, synchronously
+ * and after the render — so there is no post-write re-read; the chart's own
+ * write-backs use whichever shape the option already holds
+ * (`convertVisualRangeObject(range, !isArray(current))`), so the signal keeps
+ * the shape it was given. Once rendered, the chart reports the *full* data
  * range through the same setter (measured: `{ startValue: 1, endValue: 10 }`
  * on a 1..10 axis before any zoom), so the signal is only `undefined` before
  * the first render — and `undefined` means "do not push", per the engine rule.
@@ -243,7 +254,6 @@ export class DxChartVisualRangeDirective extends DxBindingDirectiveBase {
         super();
         const adapter: DxBindingAdapter<DxInstanceOf<DxChartComponent>, DxChartVisualRange | undefined> = {
             events: ['optionChanged', 'zoomEnd'],
-            reReadAfterWrite: true,
             read: (instance) =>
                 (instance.option as (name: string) => unknown)('argumentAxis.visualRange') as
                     | DxChartVisualRange
@@ -267,6 +277,83 @@ export class DxChartVisualRangeDirective extends DxBindingDirectiveBase {
     }
 }
 
+/** A single value axis as `dx-chart` declares it (the non-array member of `valueAxis`). */
+type DxChartValueAxis = Exclude<
+    NonNullable<DxHostOptionValue<DxChartComponent, 'valueAxis'>>,
+    readonly unknown[]
+>;
+
+/** The value axis' visual range, as `dx-chart` declares it. */
+export type DxChartValueAxisVisualRange = NonNullable<DxChartValueAxis['visualRange']>;
+
+/**
+ * The option path of the first value axis' visual range. `valueAxis` is
+ * declared `ValueAxis | ValueAxis[]` — a single `<dxo-value-axis>` versus
+ * `<dxi-value-axis>` children — and the chart's own write-back branches on
+ * exactly that (`_notifyVisualRange` writes `valueAxis.visualRange` or
+ * `valueAxis[0].visualRange`, verified against 26.1.4), so the adapter reads
+ * and writes through the same path the chart uses.
+ */
+function valueAxisVisualRangePath(instance: { option(name: string): unknown }): string {
+    return Array.isArray(instance.option('valueAxis'))
+        ? 'valueAxis[0].visualRange'
+        : 'valueAxis.visualRange';
+}
+
+/**
+ * `[(dxValueAxisVisualRange)]` for `dx-chart` — the value axis' visual range,
+ * the counterpart of `[(dxVisualRange)]` for the other axis: what a vertical
+ * zoom or pan changes, so the window can be shared or restored:
+ *
+ * ```html
+ * <dx-chart [(dxValueAxisVisualRange)]="window" [dataSource]="data">
+ *   <dxo-zoom-and-pan valueAxis="both" [allowMouseWheel]="true" />
+ * </dx-chart>
+ * ```
+ *
+ * The chart writes it back through the regular setter on every zoom/pan
+ * (the same `_notifyVisualRange` that serves the argument axis), applies a
+ * written range verbatim in either shape (measured, like the argument axis),
+ * and reports the full data range once rendered — so the adapter mirrors the
+ * argument-axis one: `optionChanged` filtered on `valueAxis` plus `zoomEnd`,
+ * no post-write re-read, and `undefined` only before the first render. With
+ * several value axes the binding follows the first one.
+ */
+@Directive({ selector: 'dx-chart[dxValueAxisVisualRange]', exportAs: 'dxValueAxisVisualRange' })
+export class DxChartValueAxisVisualRangeDirective extends DxBindingDirectiveBase {
+    readonly dxValueAxisVisualRange = model.required<DxChartValueAxisVisualRange | undefined>();
+    readonly dxValueAxisVisualRangeDebounce = input(0);
+
+    constructor() {
+        super();
+        const adapter: DxBindingAdapter<
+            DxInstanceOf<DxChartComponent>,
+            DxChartValueAxisVisualRange | undefined
+        > = {
+            events: ['optionChanged', 'zoomEnd'],
+            read: (instance) =>
+                (instance.option as (name: string) => unknown)(valueAxisVisualRangePath(instance)) as
+                    | DxChartValueAxisVisualRange
+                    | undefined,
+            write: (instance, range) => {
+                (instance.option as (name: string, value: unknown) => void)(
+                    valueAxisVisualRangePath(instance),
+                    range,
+                );
+            },
+            accept: (eventName, eventArgs) =>
+                eventName !== 'optionChanged' ||
+                (eventArgs as DxOptionChangedArgs).name === 'valueAxis',
+        };
+        this.bindAdapter<DxChartComponent, DxChartValueAxisVisualRange | undefined>(
+            injectDxHost<DxChartComponent>(),
+            this.dxValueAxisVisualRange,
+            adapter,
+            { debounceMs: () => this.dxValueAxisVisualRangeDebounce() },
+        );
+    }
+}
+
 /** The scale range type of `dx-range-selector`, as declared by DevExtreme. */
 export type DxRangeSelectorValue = DxHostValue<DxRangeSelectorComponent>;
 
@@ -284,6 +371,7 @@ export class DxRangeSelectorValueDirective extends DxValueDirectiveBase<
 /** All visualization adapter directives, for convenient bulk import. */
 export const DX_VISUALIZATION_DIRECTIVES = [
     DxChartSelectedPointsDirective,
+    DxChartValueAxisVisualRangeDirective,
     DxChartVisualRangeDirective,
     DxPieChartSelectedPointsDirective,
     DxPolarChartSelectedPointsDirective,

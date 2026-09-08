@@ -28,6 +28,7 @@ const WIDGETS = [
     'radio-group',
     'tag-box',
     'html-editor',
+    'file-uploader',
 ] as const;
 
 test.beforeEach(async ({ page }) => {

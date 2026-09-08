@@ -1,4 +1,5 @@
-import { Component } from '@angular/core';
+import { Component, inject } from '@angular/core';
+import { PlatformLocation } from '@angular/common';
 import { CompareComponent } from './compare.component';
 import { CoverageComponent } from './coverage.component';
 import { FormsCoverageComponent } from './forms-coverage.component';
@@ -13,6 +14,9 @@ import { SmokeComponent } from './smoke.component';
  * screens, `/forms` the Signal Forms certification screen, `/compare` the
  * binding-style comparison, `/coverage` and `/forms-coverage` the rows for
  * every directive the binding screens do not place. Each e2e spec loads its screen's URL directly.
+ * The path is read through `PlatformLocation` rather than the global
+ * `location`, so the same shell renders on the server (`main.server.ts`),
+ * where the URL comes from the render call and no global exists.
  */
 @Component({
     selector: 'app-root',
@@ -48,15 +52,16 @@ import { SmokeComponent } from './smoke.component';
     `,
 })
 export class AppComponent {
-    protected readonly screen = location.pathname.startsWith('/remote')
+    private readonly pathname = inject(PlatformLocation).pathname;
+    protected readonly screen = this.pathname.startsWith('/remote')
         ? 'remote'
-        : location.pathname.startsWith('/forms-coverage')
+        : this.pathname.startsWith('/forms-coverage')
           ? 'forms-coverage'
-          : location.pathname.startsWith('/forms')
+          : this.pathname.startsWith('/forms')
           ? 'forms'
-          : location.pathname.startsWith('/compare')
+          : this.pathname.startsWith('/compare')
             ? 'compare'
-            : location.pathname.startsWith('/coverage')
+            : this.pathname.startsWith('/coverage')
               ? 'coverage'
               : 'smoke';
 }

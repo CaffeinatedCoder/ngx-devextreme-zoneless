@@ -27,6 +27,7 @@
     "smoke": "ng serve smoke",
     "e2e": "playwright test",
     "probe": "node scripts/bundle-probe.mjs",
+    "ssr": "ng build smoke --configuration ssr && node scripts/ssr-check.mjs",
     "verify": "npm run build && npm run typecheck:examples",
     "release": "npm run verify && cd dist && npm publish --access public"
   },
@@ -50,6 +51,9 @@
     "@angular/core": "^22.1.3",
     "@angular/forms": "^22.1.3",
     "@angular/platform-browser": "^22.1.3",
+    "@angular/platform-server": "^22.1.3",
+    "@angular/router": "^22.1.3",
+    "@angular/ssr": "^22.1.7",
     "@playwright/test": "^1.62.1",
     "devextreme": "26.1.4",
     "devextreme-angular": "26.1.4",

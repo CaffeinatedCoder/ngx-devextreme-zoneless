@@ -1,10 +1,12 @@
-import { Component, signal } from '@angular/core';
+import { Component, computed, signal } from '@angular/core';
 import { JsonPipe } from '@angular/common';
 import { DxAccordionModule } from 'devextreme-angular/ui/accordion';
 import { DxActionSheetModule } from 'devextreme-angular/ui/action-sheet';
 import { DxAutocompleteModule } from 'devextreme-angular/ui/autocomplete';
 import { DxButtonGroupModule } from 'devextreme-angular/ui/button-group';
+import { DxCardViewModule } from 'devextreme-angular/ui/card-view';
 import { DxChartModule } from 'devextreme-angular/ui/chart';
+import { DxChatModule } from 'devextreme-angular/ui/chat';
 import { DxContextMenuModule } from 'devextreme-angular/ui/context-menu';
 import { DxDataGridModule } from 'devextreme-angular/ui/data-grid';
 import { DxDateBoxModule } from 'devextreme-angular/ui/date-box';
@@ -14,6 +16,8 @@ import { DxColorBoxModule } from 'devextreme-angular/ui/color-box';
 import { DxDateRangeBoxModule } from 'devextreme-angular/ui/date-range-box';
 import { DxDrawerModule } from 'devextreme-angular/ui/drawer';
 import { DxDropDownBoxModule } from 'devextreme-angular/ui/drop-down-box';
+import { DxFileManagerModule } from 'devextreme-angular/ui/file-manager';
+import { DxFileUploaderModule } from 'devextreme-angular/ui/file-uploader';
 import { DxFilterBuilderModule } from 'devextreme-angular/ui/filter-builder';
 import { DxGalleryModule } from 'devextreme-angular/ui/gallery';
 import { DxGanttModule } from 'devextreme-angular/ui/gantt';
@@ -29,8 +33,10 @@ import { DxPopoverModule } from 'devextreme-angular/ui/popover';
 import { DxRadioGroupModule } from 'devextreme-angular/ui/radio-group';
 import { DxRangeSelectorModule } from 'devextreme-angular/ui/range-selector';
 import { DxRangeSliderModule } from 'devextreme-angular/ui/range-slider';
+import { DxResizableModule } from 'devextreme-angular/ui/resizable';
 import { DxSchedulerModule } from 'devextreme-angular/ui/scheduler';
 import { DxSelectBoxModule } from 'devextreme-angular/ui/select-box';
+import { DxSplitterModule } from 'devextreme-angular/ui/splitter';
 import { DxStepperModule } from 'devextreme-angular/ui/stepper';
 import { DxSwitchModule } from 'devextreme-angular/ui/switch';
 import { DxTabsModule } from 'devextreme-angular/ui/tabs';
@@ -43,7 +49,9 @@ import { DxToastModule } from 'devextreme-angular/ui/toast';
 import { DxTooltipModule } from 'devextreme-angular/ui/tooltip';
 import {
     DX_SIGNAL_DIRECTIVES,
+    type DxCalendarZoomLevel,
     type DxChartSelectedPoint,
+    type DxChartValueAxisVisualRange,
     type DxChartVisualRange,
     type DxDataChange,
     type DxDateRange,
@@ -51,6 +59,7 @@ import {
     type DxFilterExpression,
     type DxNumberRange,
     type DxRangeSelectorValue,
+    type DxResizableSize,
     type DxSchedulerView,
 } from 'ngx-devextreme-zoneless';
 
@@ -87,7 +96,9 @@ function showDate(value: DxDateValue | readonly DxDateValue[] | null | undefined
         DxAutocompleteModule,
         DxButtonGroupModule,
         DxCalendarModule,
+        DxCardViewModule,
         DxChartModule,
+        DxChatModule,
         DxContextMenuModule,
         DxDataGridModule,
         DxDateBoxModule,
@@ -96,6 +107,8 @@ function showDate(value: DxDateValue | readonly DxDateValue[] | null | undefined
         DxDateRangeBoxModule,
         DxDrawerModule,
         DxDropDownBoxModule,
+        DxFileManagerModule,
+        DxFileUploaderModule,
         DxFilterBuilderModule,
         DxGalleryModule,
         DxGanttModule,
@@ -111,8 +124,10 @@ function showDate(value: DxDateValue | readonly DxDateValue[] | null | undefined
         DxRadioGroupModule,
         DxRangeSelectorModule,
         DxRangeSliderModule,
+        DxResizableModule,
         DxSchedulerModule,
         DxSelectBoxModule,
+        DxSplitterModule,
         DxStepperModule,
         DxSwitchModule,
         DxTabPanelModule,
@@ -465,6 +480,117 @@ function showDate(value: DxDateValue | readonly DxDateValue[] | null | undefined
             <dxi-series argumentField="arg" valueField="val" type="line" />
         </dx-polar-chart>
 
+        <h3>Editor state beyond value</h3>
+        <div class="row">
+            <dx-file-uploader id="nb-uploader" [(dxValue)]="files" uploadMode="useForm" [multiple]="true" selectButtonText="pick" style="width:360px" />
+            <span class="readout" data-testid="nb-uploader-readout">{{ fileNames() }}</span>
+            <button data-testid="nb-uploader-set" (click)="files.set([madeUpFile()])">set one</button>
+            <button data-testid="nb-uploader-clear" (click)="files.set([])">clear</button>
+        </div>
+        <div class="row">
+            <dx-calendar id="nb-calendar-zoom" [(dxZoomLevel)]="zoomLevel" minZoomLevel="year" [value]="january(10)" />
+            <span class="readout" data-testid="nb-calendar-zoom-readout">{{ zoomLevel() }}</span>
+            <button data-testid="nb-calendar-zoom-set" (click)="zoomLevel.set('year')">year view</button>
+            <button data-testid="nb-calendar-zoom-clamp" (click)="zoomLevel.set('century')">century (clamped to year)</button>
+        </div>
+        <div class="row">
+            <dx-chat id="nb-chat" [(dxInputFieldText)]="draft" [items]="[]" [user]="chatUser" [height]="160" style="width:360px" />
+            <span class="readout" data-testid="nb-chat-readout">{{ draft() }}</span>
+            <button data-testid="nb-chat-set" (click)="draft.set('set-draft')">set</button>
+        </div>
+
+        <h3>Layout state</h3>
+        <div class="row">
+            <dx-resizable id="nb-resizable" [(dxWidth)]="resizableWidth" [(dxHeight)]="resizableHeight" handles="right bottom" [minWidth]="60" [minHeight]="30" style="display:block">
+                <div style="background:#dde;height:100%;padding:4px;box-sizing:border-box">resize me</div>
+            </dx-resizable>
+            <span class="readout" data-testid="nb-resizable-readout">{{ resizableWidth() }}x{{ resizableHeight() }}</span>
+            <button data-testid="nb-resizable-set" (click)="resizableWidth.set(220); resizableHeight.set(70)">220x70</button>
+        </div>
+        <div class="row">
+            <span class="readout" data-testid="nb-splitter-sizes">{{ paneSizes() === undefined ? 'undefined' : (paneSizes() | json) }}</span>
+            <span class="readout" data-testid="nb-splitter-collapsed">{{ collapsedPanes() | json }}</span>
+            <button data-testid="nb-splitter-set-sizes" (click)="paneSizes.set([50, 342])">50 / rest (clamped to 80)</button>
+            <button data-testid="nb-splitter-collapse" (click)="collapsedPanes.set([0])">collapse first</button>
+            <button data-testid="nb-splitter-expand" (click)="collapsedPanes.set([])">expand all</button>
+        </div>
+        <dx-splitter id="nb-splitter" [(dxItemSizes)]="paneSizes" [(dxCollapsedItems)]="collapsedPanes" [items]="panes" [width]="400" [height]="80" />
+
+        <h3>Focused row by index</h3>
+        <div class="row">
+            <span class="readout" data-testid="nb-grid-focusidx-readout">{{ gridFocusedIndex() }}</span>
+            <button data-testid="nb-grid-focusidx-set" (click)="gridFocusedIndex.set(2)">focus third</button>
+        </div>
+        <dx-data-grid id="nb-grid-focusidx" [(dxFocusedRowIndex)]="gridFocusedIndex" [dataSource]="rows" keyExpr="id" [focusedRowEnabled]="true" [showBorders]="true" style="max-width:420px">
+            <dxi-column dataField="customer" />
+        </dx-data-grid>
+        <div class="row">
+            <span class="readout" data-testid="nb-treelist-focusidx-readout">{{ treeFocusedIndex() }}</span>
+            <button data-testid="nb-treelist-focusidx-set" (click)="treeFocusedIndex.set(2)">focus third</button>
+        </div>
+        <dx-tree-list id="nb-treelist-focusidx" [(dxFocusedRowIndex)]="treeFocusedIndex" [dataSource]="treeRows" keyExpr="id" parentIdExpr="parentId" [autoExpandAll]="true" [focusedRowEnabled]="true" [showBorders]="true" style="max-width:420px">
+            <dxi-column dataField="name" />
+        </dx-tree-list>
+
+        <h3>Card view</h3>
+        <div class="row">
+            <span class="readout" data-testid="nb-cardview-keys">{{ cardKeys() | json }}</span>
+            <span class="readout" data-testid="nb-cardview-page">{{ cardPage() }}</span>
+            <span class="readout" data-testid="nb-cardview-size">{{ cardPageSize() }}</span>
+            <span class="readout" data-testid="nb-cardview-search">{{ cardSearch() }}</span>
+            <span class="readout" data-testid="nb-cardview-filter">{{ cardFilter() | json }}</span>
+        </div>
+        <div class="row">
+            <button data-testid="nb-cardview-set-keys" (click)="cardKeys.set([2])">select Globex</button>
+            <button data-testid="nb-cardview-set-page" (click)="cardPage.set(1)">page 2</button>
+            <button data-testid="nb-cardview-set-size" (click)="cardPageSize.set(3)">size 3</button>
+            <button data-testid="nb-cardview-set-search" (click)="cardSearch.set('Ini')">search Ini</button>
+            <button data-testid="nb-cardview-set-filter" (click)="cardFilter.set(['customer', 'contains', 'x'])">filter x</button>
+            <button data-testid="nb-cardview-clear-filter" (click)="cardFilter.set(null)">clear filter</button>
+        </div>
+        <dx-card-view
+            id="nb-cardview"
+            [(dxSelectedCardKeys)]="cardKeys"
+            [(dxPageIndex)]="cardPage"
+            [(dxPageSize)]="cardPageSize"
+            [(dxSearchPanelText)]="cardSearch"
+            [(dxFilterValue)]="cardFilter"
+            [dataSource]="rows"
+            keyExpr="id"
+            [selection]="cardSelection"
+            [paging]="cardPaging"
+            [searchPanel]="cardSearchPanel"
+            [height]="300"
+            style="max-width:640px" />
+
+        <h3>File manager</h3>
+        <div class="row">
+            <span class="readout" data-testid="nb-fm-path">{{ fmPath() | json }}</span>
+            <span class="readout" data-testid="nb-fm-selected">{{ fmSelected() | json }}</span>
+            <span class="readout" data-testid="nb-fm-focused">{{ fmFocused() ?? 'null' }}</span>
+            <button data-testid="nb-fm-set-path" (click)="fmPath.set(['Docs'])">open Docs</button>
+            <button data-testid="nb-fm-set-selected" (click)="fmSelected.set(['Docs/b.txt'])">select b.txt</button>
+            <button data-testid="nb-fm-set-focused" (click)="fmFocused.set('Docs/a.txt')">focus a.txt</button>
+        </div>
+        <dx-file-manager
+            id="nb-fm"
+            [(dxCurrentPathKeys)]="fmPath"
+            [(dxSelectedItemKeys)]="fmSelected"
+            [(dxFocusedItemKey)]="fmFocused"
+            [fileSystemProvider]="fmItems"
+            [height]="280"
+            style="max-width:640px" />
+
+        <h3>Chart value axis</h3>
+        <div class="row">
+            <span class="readout" data-testid="nb-chart-value-readout">{{ valueRange() === undefined ? 'undefined' : (valueRange() | json) }}</span>
+            <button data-testid="nb-chart-value-set" (click)="valueRange.set([2, 6])">zoom values to 2–6</button>
+        </div>
+        <dx-chart id="nb-chart-value" [(dxValueAxisVisualRange)]="valueRange" [dataSource]="lineData" style="height:200px; max-width:480px">
+            <dxi-series argumentField="x" valueField="y" type="line" />
+            <dxo-zoom-and-pan valueAxis="both" [allowMouseWheel]="true" />
+        </dx-chart>
+
         <h3>Templates under zoneless</h3>
         <!-- A signal read *inside* a widget-rendered template: the list owns
              the DOM, Angular owns the embedded view, and the counter has to
@@ -623,6 +749,47 @@ export class CoverageComponent {
         { arg: 'W', val: 6 },
     ];
 
+    // 4.0 demand-driven bindings — editor state beyond value
+    readonly files = signal<readonly File[]>([]);
+    readonly fileNames = computed(() => this.files().map((file) => file.name).join(',') || 'none');
+    readonly zoomLevel = signal<DxCalendarZoomLevel>('month');
+    readonly draft = signal('');
+    readonly chatUser = { id: 1, name: 'me' };
+
+    // 4.0 demand-driven bindings — layout state
+    readonly resizableWidth = signal<DxResizableSize>(150);
+    readonly resizableHeight = signal<DxResizableSize>(50);
+    readonly paneSizes = signal<readonly number[] | undefined>(undefined);
+    readonly collapsedPanes = signal<readonly number[]>([]);
+    /** `minSize` on the first pane, so a written size below it is measurably clamped. */
+    readonly panes = [
+        { text: 'left', collapsible: true, minSize: 80 },
+        { text: 'right' },
+    ];
+
+    // 4.0 demand-driven bindings — focused row by index, card view, file manager
+    readonly gridFocusedIndex = signal(-1);
+    readonly treeFocusedIndex = signal(-1);
+    readonly cardKeys = signal<readonly number[]>([]);
+    readonly cardPage = signal(0);
+    readonly cardPageSize = signal(2);
+    readonly cardSearch = signal('');
+    readonly cardFilter = signal<DxFilterExpression | null>(null);
+    /** Stable references: a template literal would be a new object per check and re-push the option. */
+    readonly cardSelection = { mode: 'multiple' as const };
+    readonly cardPaging = { pageSize: 2 };
+    readonly cardSearchPanel = { visible: true };
+    readonly fmPath = signal<readonly string[]>([]);
+    readonly fmSelected = signal<readonly string[]>([]);
+    readonly fmFocused = signal<string | null>(null);
+    readonly fmItems = [
+        { name: 'Docs', isDirectory: true, items: [{ name: 'a.txt', size: 10 }, { name: 'b.txt', size: 20 }] },
+        { name: 'root.txt', size: 5 },
+    ];
+
+    // 4.0 demand-driven bindings — chart value axis
+    readonly valueRange = signal<DxChartValueAxisVisualRange | undefined>(undefined);
+
     // Templates
     readonly counter = signal(0);
 
@@ -630,6 +797,9 @@ export class CoverageComponent {
 
     january(day: number): Date {
         return new Date(2026, 0, day);
+    }
+    madeUpFile(): File {
+        return new File(['set'], 'set.txt', { type: 'text/plain' });
     }
     march(day: number): Date {
         return new Date(2026, 2, day);

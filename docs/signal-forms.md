@@ -107,8 +107,9 @@ every value change by comparing against its own initial value (verified against
 26.1.4). An external write would have no visible effect and would be clobbered
 by the next keystroke.
 
-Available on all 18 editor families that carry DevExtreme's `Editor` validation
-surface. `dx-filter-builder` is excluded — it extends `WidgetOptions`, not
+Available on all 19 editor families that carry DevExtreme's `Editor` validation
+surface — `dx-file-uploader` included since 4.0, whose value is the picked
+`File[]`. `dx-filter-builder` is excluded — it extends `WidgetOptions`, not
 `EditorOptions`, and has none of these options.
 
 **One owner for the value.** Do not put `[(dxValue)]` and `[formField]` on the

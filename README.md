@@ -77,8 +77,9 @@ export class OrdersComponent {
 ```
 
 Or import everything at once with `DX_SIGNAL_DIRECTIVES` (also available per
-family: `DX_VALUE_DIRECTIVES`, `DX_NAVIGATION_DIRECTIVES`,
-`DX_VISIBLE_DIRECTIVES`, `DX_DATA_DIRECTIVES`, `DX_VISUALIZATION_DIRECTIVES`).
+family: `DX_VALUE_DIRECTIVES`, `DX_OPENED_DIRECTIVES`, `DX_EDITOR_STATE_DIRECTIVES`,
+`DX_NAVIGATION_DIRECTIVES`, `DX_VISIBLE_DIRECTIVES`, `DX_DATA_DIRECTIVES`,
+`DX_VISUALIZATION_DIRECTIVES`).
 
 ## Choosing your binding style
 
@@ -107,11 +108,13 @@ invisible, and is what the rest of this package covers.
 ## What is covered
 
 Two-way directives exist wherever a widget has genuine user-mutable state —
-`[(dxValue)]` and `[(dxOpened)]` on the editors, selection, editing state,
-deferred selection and layout state on the data widgets, expansion on the
-trees, `[(dxVisible)]`/`[(dxOpened)]`/`[(dxSelectedIndex)]`/`[(dxSelectedItemKeys)]`
-on overlays and navigation, chart point selection and visual range — each typed
-to the widget's real value type. The
+`[(dxValue)]` and `[(dxOpened)]` on the editors, selection, focus, editing
+state, deferred selection and layout state on the grids and the card view,
+navigation, selection and focus on the file manager, expansion on the trees,
+`[(dxVisible)]`/`[(dxOpened)]`/`[(dxSelectedIndex)]`/`[(dxSelectedItemKeys)]`
+on overlays and navigation, pane sizes and dimensions on the splitter and the
+resizable, chart point selection and both axes' visual ranges — each typed to
+the widget's real value type. The
 **[directive catalog](https://github.com/CaffeinatedCoder/ngx-devextreme-zoneless/blob/main/docs/directives.md)**
 is the authoritative table. Components without a dedicated directive
 (PivotGrid, Sortable, Menu, …) are fully covered by the
@@ -132,10 +135,10 @@ complete DevExtreme.AspNet.Data loadOptions wire protocol through your own
 ngx-devextreme-zoneless            → everything (re-exports the below)
 ngx-devextreme-zoneless/core       → engine, types, bases, signal factories
 ngx-devextreme-zoneless/data-source → dxArrayStoreSource, dxReloadOn, dxRemoteStore, dxLoadOptionsParams
-ngx-devextreme-zoneless/editors    → [(dxValue)] and [(dxOpened)] directives
-ngx-devextreme-zoneless/navigation → [(dxSelectedIndex)], [(dxOpened)], …
+ngx-devextreme-zoneless/editors    → [(dxValue)], [(dxOpened)], [(dxZoomLevel)], [(dxInputFieldText)]
+ngx-devextreme-zoneless/navigation → [(dxSelectedIndex)], [(dxOpened)], splitter and resizable layout, …
 ngx-devextreme-zoneless/overlays   → [(dxVisible)] directives
-ngx-devextreme-zoneless/data       → grid/form/scheduler/tree directives
+ngx-devextreme-zoneless/data       → grid/card-view/file-manager/form/scheduler/tree directives
 ngx-devextreme-zoneless/visualization → chart selection, range selector
 ngx-devextreme-zoneless/forms      → [dxFieldState] (Signal Forms; NOT re-exported by the main entry)
 ```
@@ -168,8 +171,8 @@ exist to make the split explicit.
 
 Working on the package itself:
 [development](https://github.com/CaffeinatedCoder/ngx-devextreme-zoneless/blob/main/docs/development.md)
-— builds, the smoke app's four screens, the e2e suite and the tree-shaking
-probe.
+— builds, the smoke app's six screens, the e2e suite, the tree-shaking
+probe and the server-render measurement.
 
 ## Verified, not assumed
 
@@ -178,7 +181,12 @@ the claim this package makes is exactly as strong as its suite: a Playwright
 run drives every directive in the catalog through a real zoneless app — both
 directions on every widget, widget re-creation, signal-driven `*dxTemplate`
 content, slow and failing endpoints against a wire-protocol stub — on every
-push. The compile-time surface has its own contract tests
+push, and a server render of every screen under `@angular/platform-server`
+pins that the same app bootstraps, settles and raises nothing on the server
+with the vendor's `DxServerModule` in place (measured, not assumed: the vendor
+constructs every widget there, and its viz widgets are empty stand-ins — see
+[development](https://github.com/CaffeinatedCoder/ngx-devextreme-zoneless/blob/main/docs/development.md)).
+The compile-time surface has its own contract tests
 ([examples/type-tests.ts](examples/type-tests.ts)): option names, event names
 and value types are pinned so a vendor rename fails the build instead of
 shipping.

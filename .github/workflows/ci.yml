@@ -28,6 +28,9 @@ jobs:
       - name: Bundle tree-shaking probe
         run: npm run probe
 
+      - name: Server-side render of every smoke screen (zoneless, platform-server)
+        run: npm run ssr
+
       - name: Install Playwright browser
         run: npx playwright install --with-deps chromium
 

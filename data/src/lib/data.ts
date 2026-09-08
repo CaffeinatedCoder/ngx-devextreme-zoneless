@@ -1,5 +1,7 @@
 import { Directive, input, model } from '@angular/core';
+import type { DxCardViewComponent } from 'devextreme-angular/ui/card-view';
 import type { DxDataGridComponent } from 'devextreme-angular/ui/data-grid';
+import type { DxFileManagerComponent } from 'devextreme-angular/ui/file-manager';
 import type { DxFormComponent } from 'devextreme-angular/ui/form';
 import type { DxGanttComponent } from 'devextreme-angular/ui/gantt';
 import type { DxSchedulerComponent } from 'devextreme-angular/ui/scheduler';
@@ -8,7 +10,9 @@ import type { DxTreeViewComponent } from 'devextreme-angular/ui/tree-view';
 import type { DataChange } from 'devextreme/common/grids';
 import {
     DxBindingDirectiveBase,
+    DxSelectedItemKeysDirectiveBase,
     DxSelectedRowKeysDirectiveBase,
+    dxOptionAdapter,
     dxStructuralClone,
     injectDxHost,
     type DxAdapterEventName,
@@ -871,11 +875,225 @@ export class DxDataGridSelectionFilterDirective<
     }
 }
 
+/* ------------------------------------------------------------------------ *
+ *  Focused row by index (4.0). `focusedRowIndex` is a top-level option and
+ *  the keyboard-navigation controller writes it through the setter on every
+ *  click and arrow key — but it also pre-positions the focused cell silently
+ *  during Ctrl+Home/End virtual-scroll navigation before the real focus
+ *  commits, and paging reconciliation resets it to -1 through a data
+ *  operation (verified against 26.1.4). Hence the family default: the option
+ *  change plus a `contentReady` re-read. `focusedColumnIndex` is deliberately
+ *  absent: the widget's change handler for it is a no-op marker, so an
+ *  external write moves nothing — read it with `dxOptionSignal` instead.
+ * ------------------------------------------------------------------------ */
+
+function gridFocusedRowIndexAdapter(): DxBindingAdapter<DxWidget, number> {
+    return gridMethodAdapter<DxWidget, number>(
+        'focusedRowIndex',
+        (instance) =>
+            ((instance.option as (name: string) => unknown)('focusedRowIndex') as number | undefined) ?? -1,
+        (instance, index) => {
+            (instance.option as (name: string, value: unknown) => void)('focusedRowIndex', index);
+        },
+    );
+}
+
+/**
+ * `[(dxFocusedRowIndex)]` base shared by the grid-like widgets — the focused
+ * row's index on the current page, `-1` when none. Requires
+ * `focusedRowEnabled`; a written index resolves to its key and focuses the
+ * row, paging to it if needed. Prefer `[(dxFocusedRowKey)]` where identity
+ * matters across reloads: the index is the render-relative value.
+ */
+@Directive()
+export abstract class DxFocusedRowIndexDirectiveBase<
+    THost extends DxHostComponent,
+> extends DxBindingDirectiveBase {
+    readonly dxFocusedRowIndex = model.required<number>();
+
+    protected constructor(host: THost) {
+        super();
+        this.bindAdapter<THost, number>(
+            host,
+            this.dxFocusedRowIndex,
+            gridFocusedRowIndexAdapter() as DxBindingAdapter<DxInstanceOf<THost>, number>,
+        );
+    }
+}
+
+/** `[(dxFocusedRowIndex)]` for `dx-data-grid` (requires `focusedRowEnabled`). */
+@Directive({ selector: 'dx-data-grid[dxFocusedRowIndex]', exportAs: 'dxFocusedRowIndex' })
+export class DxDataGridFocusedRowIndexDirective<
+    TRowData = unknown,
+    TKey = unknown,
+> extends DxFocusedRowIndexDirectiveBase<DxDataGridComponent<TRowData, TKey>> {
+    constructor() {
+        super(injectDxHost<DxDataGridComponent>());
+    }
+}
+
+/** `[(dxFocusedRowIndex)]` for `dx-tree-list` (requires `focusedRowEnabled`). */
+@Directive({ selector: 'dx-tree-list[dxFocusedRowIndex]', exportAs: 'dxFocusedRowIndex' })
+export class DxTreeListFocusedRowIndexDirective<
+    TRowData = unknown,
+    TKey = unknown,
+> extends DxFocusedRowIndexDirectiveBase<DxTreeListComponent<TRowData, TKey>> {
+    constructor() {
+        super(injectDxHost<DxTreeListComponent>());
+    }
+}
+
+/* ------------------------------------------------------------------------ *
+ *  CardView (4.0). Not built on `grid_core`: a separate controller-based
+ *  implementation in which every two-way state (`selectedCardKeys`,
+ *  `paging.*`, `searchPanel.text`, `filterValue`) is an `OptionsController
+ *  .twoWay()` whose setter is a real `option()` write, and `contentReady`
+ *  fires after every load (verified against 26.1.4). It exposes the same
+ *  `pageIndex()`/`pageSize()`/`searchByText()` methods as the grids, so the
+ *  paging, search and filter bases apply unchanged.
+ * ------------------------------------------------------------------------ */
+
+/**
+ * `[(dxSelectedCardKeys)]` for `dx-card-view`; `TKey` is inferred from your
+ * signal. A written key set is applied after the widget has loaded the cards
+ * for those keys, and keys that match no card are dropped through a later
+ * `optionChanged` — an asynchronous correction the binding folds in as it
+ * would any user change.
+ */
+@Directive({ selector: 'dx-card-view[dxSelectedCardKeys]', exportAs: 'dxSelectedCardKeys' })
+export class DxCardViewSelectedCardKeysDirective<
+    TCardData = unknown,
+    TKey = unknown,
+> extends DxBindingDirectiveBase {
+    readonly dxSelectedCardKeys = model.required<readonly TKey[]>();
+
+    constructor() {
+        super();
+        this.bindOption<DxCardViewComponent<TCardData, TKey>, readonly TKey[]>(
+            injectDxHost<DxCardViewComponent>(),
+            'selectedCardKeys',
+            this.dxSelectedCardKeys,
+        );
+    }
+}
+
+/** `[(dxPageIndex)]` for `dx-card-view` (zero-based). */
+@Directive({ selector: 'dx-card-view[dxPageIndex]', exportAs: 'dxPageIndex' })
+export class DxCardViewPageIndexDirective<
+    TCardData = unknown,
+    TKey = unknown,
+> extends DxPageIndexDirectiveBase<DxCardViewComponent<TCardData, TKey>> {
+    constructor() {
+        super(injectDxHost<DxCardViewComponent>());
+    }
+}
+
+/** `[(dxPageSize)]` for `dx-card-view`. */
+@Directive({ selector: 'dx-card-view[dxPageSize]', exportAs: 'dxPageSize' })
+export class DxCardViewPageSizeDirective<
+    TCardData = unknown,
+    TKey = unknown,
+> extends DxPageSizeDirectiveBase<DxCardViewComponent<TCardData, TKey>> {
+    constructor() {
+        super(injectDxHost<DxCardViewComponent>());
+    }
+}
+
+/** `[(dxFilterValue)]` for `dx-card-view`. */
+@Directive({ selector: 'dx-card-view[dxFilterValue]', exportAs: 'dxFilterValue' })
+export class DxCardViewFilterValueDirective<
+    TCardData = unknown,
+    TKey = unknown,
+> extends DxFilterValueDirectiveBase<DxCardViewComponent<TCardData, TKey>> {
+    constructor() {
+        super(injectDxHost<DxCardViewComponent>(), 'filterValue');
+    }
+}
+
+/** `[(dxSearchPanelText)]` for `dx-card-view` — see {@link DxSearchPanelTextDirectiveBase}. */
+@Directive({ selector: 'dx-card-view[dxSearchPanelText]', exportAs: 'dxSearchPanelText' })
+export class DxCardViewSearchPanelTextDirective<
+    TCardData = unknown,
+    TKey = unknown,
+> extends DxSearchPanelTextDirectiveBase<DxCardViewComponent<TCardData, TKey>> {
+    constructor() {
+        super(injectDxHost<DxCardViewComponent>());
+    }
+}
+
+/* ------------------------------------------------------------------------ *
+ *  FileManager (4.0). Navigation, selection and focus are top-level options
+ *  the widget writes through its setter on every gesture, and a path that
+ *  does not resolve is corrected back through the same setter once the
+ *  directory load fails (verified against 26.1.4) — so all three are plain
+ *  option bindings and the correction arrives as an ordinary change.
+ * ------------------------------------------------------------------------ */
+
+/**
+ * `[(dxCurrentPathKeys)]` for `dx-file-manager` — the current directory as
+ * the key path from the root (`['Documents', 'Documents/Reports']` with the
+ * default path keys). Writing it navigates; the widget resolves the path
+ * asynchronously and, if it does not exist, rewrites the option to where it
+ * actually is.
+ */
+@Directive({ selector: 'dx-file-manager[dxCurrentPathKeys]', exportAs: 'dxCurrentPathKeys' })
+export class DxFileManagerCurrentPathKeysDirective extends DxBindingDirectiveBase {
+    readonly dxCurrentPathKeys = model.required<readonly string[]>();
+
+    constructor() {
+        super();
+        this.bindOption<DxFileManagerComponent, readonly string[]>(
+            injectDxHost<DxFileManagerComponent>(),
+            'currentPathKeys',
+            this.dxCurrentPathKeys,
+        );
+    }
+}
+
+/** `[(dxSelectedItemKeys)]` for `dx-file-manager` — the selected items' keys (paths by default). */
+@Directive({ selector: 'dx-file-manager[dxSelectedItemKeys]', exportAs: 'dxSelectedItemKeys' })
+export class DxFileManagerSelectedItemKeysDirective extends DxSelectedItemKeysDirectiveBase<
+    DxFileManagerComponent,
+    string
+> {
+    constructor() {
+        super(injectDxHost<DxFileManagerComponent>(), 'selectedItemKeys');
+    }
+}
+
+/**
+ * `[(dxFocusedItemKey)]` for `dx-file-manager` — the focused item's key,
+ * `null` when none. The widget reports "no focus" as `undefined`, which the
+ * adapter normalizes to `null` so the model has one spelling for it.
+ */
+@Directive({ selector: 'dx-file-manager[dxFocusedItemKey]', exportAs: 'dxFocusedItemKey' })
+export class DxFileManagerFocusedItemKeyDirective extends DxBindingDirectiveBase {
+    readonly dxFocusedItemKey = model.required<string | null>();
+
+    constructor() {
+        super();
+        this.bindAdapter<DxFileManagerComponent, string | null>(
+            injectDxHost<DxFileManagerComponent>(),
+            this.dxFocusedItemKey,
+            {
+                ...dxOptionAdapter<DxFileManagerComponent, 'focusedItemKey', string | null>('focusedItemKey'),
+                read: (instance) => instance.option('focusedItemKey') ?? null,
+            },
+        );
+    }
+}
+
 /** All data-component adapter directives, for convenient bulk import. */
 export const DX_DATA_DIRECTIVES = [
+    DxCardViewFilterValueDirective,
+    DxCardViewPageIndexDirective,
+    DxCardViewPageSizeDirective,
+    DxCardViewSearchPanelTextDirective,
+    DxCardViewSelectedCardKeysDirective,
     DxDataGridEditRowKeyDirective,
     DxDataGridEditingChangesDirective,
     DxDataGridFilterValueDirective,
+    DxDataGridFocusedRowIndexDirective,
     DxDataGridFocusedRowKeyDirective,
     DxDataGridPageIndexDirective,
     DxDataGridPageSizeDirective,
@@ -883,6 +1101,9 @@ export const DX_DATA_DIRECTIVES = [
     DxDataGridSelectedRowKeysDirective,
     DxDataGridSelectionFilterDirective,
     DxDataGridStateDirective,
+    DxFileManagerCurrentPathKeysDirective,
+    DxFileManagerFocusedItemKeyDirective,
+    DxFileManagerSelectedItemKeysDirective,
     DxFormDataDirective,
     DxGanttSelectedRowKeyDirective,
     DxSchedulerCurrentDateDirective,
@@ -891,6 +1112,7 @@ export const DX_DATA_DIRECTIVES = [
     DxTreeListEditingChangesDirective,
     DxTreeListExpandedRowKeysDirective,
     DxTreeListFilterValueDirective,
+    DxTreeListFocusedRowIndexDirective,
     DxTreeListFocusedRowKeyDirective,
     DxTreeListPageIndexDirective,
     DxTreeListPageSizeDirective,
