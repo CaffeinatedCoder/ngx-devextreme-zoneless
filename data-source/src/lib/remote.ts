@@ -101,6 +101,20 @@ export interface DxRemoteStore<TItem, TKey = unknown> {
      */
     readonly error: Signal<unknown>;
     /**
+     * The items of the most recent successful load, as the `DataSource`
+     * reports them — the current page of a paged grid, the group objects of
+     * a grouped one. `[]` until the first load settles. This is the loaded
+     * data made observable *outside* the widget (a count in a header, an
+     * empty-state message) without a second request.
+     */
+    readonly items: Signal<readonly TItem[]>;
+    /**
+     * The total count the server reported with the most recent successful
+     * load, or `undefined` when it reported none — a widget only asks for it
+     * (`requireTotalCount`) when it pages.
+     */
+    readonly totalCount: Signal<number | undefined>;
+    /**
      * Refetches the current query: cancels in-flight loads (DataSource
      * operation + transport `AbortSignal`), keeps the current page, and
      * resolves when the reload settles. Failures land in `error`, so the
@@ -282,6 +296,19 @@ export function dxRemoteStore<TItem, TKey = unknown>(
         }),
     });
 
+    const items = signal<readonly TItem[]>([]);
+    const totalCount = signal<number | undefined>(undefined);
+    // `changed` fires after every successful load with the DataSource's own
+    // state already updated, so `items()` is exactly what the widget renders
+    // and `totalCount()` is what its pager shows (`-1` when the server sent
+    // none). Disposed with the DataSource on injector destruction.
+    const publishLoaded = (): void => {
+        items.set(dataSource.items() as readonly TItem[]);
+        const total = dataSource.totalCount();
+        totalCount.set(total >= 0 ? total : undefined);
+    };
+    dataSource.on('changed', publishLoaded);
+
     /** Aborts the query-scoped loads only — `byKey` deliberately survives. */
     const abortInFlightLoads = (): void => {
         for (const controller of inFlightLoads) {
@@ -347,6 +374,8 @@ export function dxRemoteStore<TItem, TKey = unknown>(
         dataSource,
         isLoading: computed(() => pendingCount() > 0),
         error: lastError.asReadonly(),
+        items: items.asReadonly(),
+        totalCount: totalCount.asReadonly(),
         reload,
     };
 }

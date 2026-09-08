@@ -15,38 +15,47 @@ binding family through a real zoneless app — is the compatibility net the vend
 That is the whole product: **the tests are not a quality gate on the library, they are the library's
 central claim.** v2.0 split the package into secondary entry points so a single-directive import
 tree-shakes; v2.1 added `dxRemoteStore`; v3.0 closed six defects and widened the loadOptions
-protocol coverage.
+protocol coverage. v4.0 made every entry point free of widget and data-layer runtime imports (measured
+under code splitting, not assumed), drove every directive — not merely every family — through
+the zoneless app, and added the editing, deferred-selection, expansion, open-state and
+visual-range bindings.
 
 ## Stack
 Angular ≥22.1 <23 (built against 22.1.3, zoneless) · DevExtreme / devextreme-angular ≥26.1 (built against
 26.1.4) · TypeScript 6.0 `strict`, zero `any` in the public surface · ng-packagr · Playwright
 
 ## Structure
-Seven secondary entry points, each its own `src/public-api.ts`. The split is load-bearing: it is what
+Eight secondary entry points, each its own `src/public-api.ts`. The split is load-bearing: it is what
 lets a consumer importing one editor directive shake away Gantt, Scheduler, HtmlEditor, charts and
 grids. A single-FESM layout demonstrably did *not* shake, which is why `npm run probe` exists.
 
 - `core/` — the binding engine and the type system: `bindDxState`/`bindDxOption`, `onDxWidgetReady`,
-  the signal factories, equality/clone helpers, `dxRemoteStore` and `dxLoadOptionsParams`. Everything
-  else depends on this and nothing here depends on a widget package
+  the signal factories, equality/clone helpers. Everything else depends on this and nothing here
+  depends on a widget package — nor, since 4.0, on DevExtreme's data layer
+- `data-source/` — signals in, `DataSource` out: `dxArrayStoreSource`, `dxReloadOn`, `dxRemoteStore`
+  and `dxLoadOptionsParams`. Its own entry point because these construct `DataSource`/`CustomStore`,
+  and `devextreme` declares no `sideEffects: false`, so that import is unshakeable — ~40 KB minified
+  on a text-box-only chunk while it lived in `core` (measured 2026-09-08)
 - `editors/`, `navigation/`, `overlays/`, `data/`, `visualization/` — per-family adapter directives.
-  Each imports only the `devextreme-angular/ui/<widget>` modules it actually adapts; a stray import
-  is what breaks the probe
+  Wrapper classes are **type-only** imports and the host comes from `injectDxHost()`; a value import
+  of a wrapper is what breaks the probe
 - `forms/` — the Signal Forms seam: `[dxFieldState]` presents a field's state in the editor's own
   validation UI. The only entry point with a peer outside DevExtreme (`@angular/forms`, optional),
   which is why the main entry point does **not** re-export it
 - `src/` — the main entry point, re-exporting everything except `forms` plus `DX_SIGNAL_DIRECTIVES`
-- `smoke/` — the zoneless reference app the e2e suite drives. Two screens without a router: `/` is
-  the binding screen, `/remote` the remote-data screens. **These are reference consumers, not test
-  fixtures** — the README's examples are written from them, so if a screen stops compiling the docs
-  are wrong
+- `smoke/` — the zoneless reference app the e2e suite drives. Six screens without a router: `/` is
+  the binding screen, `/remote` the remote-data screens, `/forms` the Signal Forms certification,
+  `/compare` the binding-style comparison, `/coverage` and `/forms-coverage` one row per directive
+  the binding screen does not place. **These are reference consumers, not test fixtures** — the
+  README's examples are written from them, so if a screen stops compiling the docs are wrong
 - `e2e/` — Playwright specs plus `stub-server.mjs`, a deterministic DevExtreme loadOptions server
   with injectable latency, failures and decimal spelling, and a `__stats` endpoint so protocol
   assertions are made against real HTTP traffic rather than app-side counters
 - `examples/type-tests.ts` — compile-time contract tests. Never executed; `npm run typecheck:examples`
   fails when a positive assertion stops compiling or a `@ts-expect-error` starts compiling
-- `probe/`, `scripts/bundle-probe.mjs` — the tree-shaking probe: builds a single-directive app and
-  asserts the heavy widget families are absent from the bundle
+- `probe/`, `scripts/bundle-probe.mjs` — the bundle-isolation probe: a static scan of `dist/fesm2022`
+  for runtime wrapper imports, then a six-lazy-chunk app asserting each chunk's static closure holds
+  only its own widget while the heavy siblings are live in another chunk
 
 ## Commands
 ```bash
@@ -69,7 +78,7 @@ start the stub or the smoke app by hand alongside it. CI runs verify, probe and 
 2. Read the adapter next to the one you are changing. The families are deliberately repetitive;
    the shape you want almost always already exists
 3. Run `npm run verify` after a type-surface change and `npm run e2e` after a behaviour change.
-   The full suite is ~30s — there is no reason to guess
+   The full suite is ~75 s for 207 cases — there is no reason to guess
 4. **Prove the test by breaking the fix.** Strip only the fix, confirm the test fails for the
    expected reason, restore. A test that passes with and without the fix asserts nothing
 5. A new directive extends `examples/type-tests.ts` in the same change — that is the enforcement,
@@ -288,11 +297,24 @@ implementation. These facts are pinned **by measurement**, not by vendor documen
 
 **Packaging**
 
-- **A per-family entry point imports only the `devextreme-angular/ui/<widget>` modules it adapts.**
-  One stray import re-couples the families and the probe fails — which is the probe working
+- **No entry point imports `devextreme-angular/ui/<widget>` at runtime.** Wrapper classes are
+  `import type`; the host is `injectDxHost<DxXComponent>()`, which resolves the wrapper's own
+  `NestedOptionHost` provider (every generated wrapper provides it at its element and calls
+  `setHost(this)`). The reason is code splitting, not tree-shaking: esbuild assigns files to chunks
+  by *reachability*, so a single value import made the grid part of a consumer's shell closure the
+  moment any lazy route used the grid — 1.7 MB raw, measured 2026-09-08 — and only siblings live
+  elsewhere in the app leak, which is why a single-chunk probe could never see it. `export *`
+  barrels over separate FESMs do not re-couple (measured); a shared FESM with a value import does.
+  One stray value import turns the probe red — which is the probe working
+- **Only `data-source` imports `devextreme/` at runtime.** It constructs `DataSource`/`CustomStore`,
+  and `devextreme` declares no `sideEffects: false`, so that import is unshakeable; in `core` it cost
+  every chunk ~40 KB minified (measured on a text-box-only chunk, 2026-09-08). Anything new that
+  needs the data layer goes there, never in `core` or a widget family — the probe's static scan and
+  the text-box chunk's closure assertion both go red otherwise
 - Peer ranges are `@angular/core >=22.1 <23`, `devextreme`/`devextreme-angular >=26.1`, plus
   `@angular/forms >=22.1 <23` as an *optional* peer for the `forms` entry point. The Angular floor is
   22.1 because that is what CI exercises — an advertised range no gate runs is not a claim this repo
   makes. A version bump
   is a peer-range edit plus a green CI run; a red run is the compatibility net doing its job. The
-  `'canceled'` token and the untyped `DataSource` internals are the two version-sensitive spots
+  `'canceled'` token, the untyped `DataSource` internals and `NestedOptionHost.getHost()` are the
+  three version-sensitive spots

@@ -7,6 +7,7 @@ import {
     type Signal,
     type WritableSignal,
 } from '@angular/core';
+import { NestedOptionHost } from 'devextreme-angular/core';
 import { bindDxOption, type DxBindingOptions } from './binding';
 import { onDxWidgetReady } from './ready';
 import type {
@@ -154,6 +155,35 @@ export function dxInstanceSignal<THost extends DxHostComponent>(
         resolvedInjector,
     );
     return instance.asReadonly();
+}
+
+/**
+ * Injects the devextreme-angular component hosting the *current element*
+ * without naming its class — and therefore without a runtime import of
+ * `devextreme-angular/ui/<widget>`:
+ *
+ * ```ts
+ * const host = injectDxHost<DxTextBoxComponent>(); // `DxTextBoxComponent` is a type-only import
+ * ```
+ *
+ * Every generated wrapper lists `NestedOptionHost` in its own `providers` and
+ * calls `setHost(this)` in its constructor (verified against devextreme-angular
+ * 26.1.4 for all forty adapted widgets), so the token resolves at the widget's
+ * element injector and points at the wrapper itself. Nested option components
+ * (`dxo-*`, `dxi-*`) get their *own* instance on their own element and never
+ * overwrite the widget's. The injection is strictly `{ self: true }`.
+ *
+ * This is what every shipped directive uses, and the reason is bundle
+ * isolation rather than taste: a value import of the wrapper class is a
+ * module-level edge from the directive's FESM to the widget, and esbuild
+ * assigns files to chunks by reachability — so a widget that is live for one
+ * lazy route becomes part of every other route's closure that shares the FESM.
+ * With the class as a type-only import the edge does not exist. The caller
+ * names the type; the directive's selector (`dx-text-box[dxValue]`) is what
+ * makes it true.
+ */
+export function injectDxHost<THost extends DxHostComponent>(): THost {
+    return inject(NestedOptionHost, { self: true }).getHost() as unknown as THost;
 }
 
 /**

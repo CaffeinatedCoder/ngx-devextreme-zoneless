@@ -1,14 +1,16 @@
-import { Directive, inject, input, model } from '@angular/core';
-import { DxDataGridComponent } from 'devextreme-angular/ui/data-grid';
-import { DxFormComponent } from 'devextreme-angular/ui/form';
-import { DxGanttComponent } from 'devextreme-angular/ui/gantt';
-import { DxSchedulerComponent } from 'devextreme-angular/ui/scheduler';
-import { DxTreeListComponent } from 'devextreme-angular/ui/tree-list';
-import { DxTreeViewComponent } from 'devextreme-angular/ui/tree-view';
+import { Directive, input, model } from '@angular/core';
+import type { DxDataGridComponent } from 'devextreme-angular/ui/data-grid';
+import type { DxFormComponent } from 'devextreme-angular/ui/form';
+import type { DxGanttComponent } from 'devextreme-angular/ui/gantt';
+import type { DxSchedulerComponent } from 'devextreme-angular/ui/scheduler';
+import type { DxTreeListComponent } from 'devextreme-angular/ui/tree-list';
+import type { DxTreeViewComponent } from 'devextreme-angular/ui/tree-view';
+import type { DataChange } from 'devextreme/common/grids';
 import {
     DxBindingDirectiveBase,
     DxSelectedRowKeysDirectiveBase,
     dxStructuralClone,
+    injectDxHost,
     type DxAdapterEventName,
     type DxBindingAdapter,
     type DxDateValue,
@@ -28,7 +30,7 @@ export class DxDataGridSelectedRowKeysDirective<
     TKey = unknown,
 > extends DxSelectedRowKeysDirectiveBase<DxDataGridComponent<TRowData, TKey>, TKey> {
     constructor() {
-        super(inject(DxDataGridComponent, { self: true }), 'selectedRowKeys');
+        super(injectDxHost<DxDataGridComponent>(), 'selectedRowKeys');
     }
 }
 
@@ -39,7 +41,7 @@ export class DxTreeListSelectedRowKeysDirective<
     TKey = unknown,
 > extends DxSelectedRowKeysDirectiveBase<DxTreeListComponent<TRowData, TKey>, TKey> {
     constructor() {
-        super(inject(DxTreeListComponent, { self: true }), 'selectedRowKeys');
+        super(injectDxHost<DxTreeListComponent>(), 'selectedRowKeys');
     }
 }
 
@@ -51,7 +53,7 @@ export class DxGanttSelectedRowKeyDirective<TKey = unknown> extends DxBindingDir
     constructor() {
         super();
         this.bindOption<DxGanttComponent, TKey | null>(
-            inject(DxGanttComponent, { self: true }),
+            injectDxHost<DxGanttComponent>(),
             'selectedRowKey',
             this.dxSelectedRowKey,
         );
@@ -66,7 +68,7 @@ export class DxSchedulerCurrentDateDirective extends DxBindingDirectiveBase {
     constructor() {
         super();
         this.bindOption<DxSchedulerComponent, DxDateValue>(
-            inject(DxSchedulerComponent, { self: true }),
+            injectDxHost<DxSchedulerComponent>(),
             'currentDate',
             this.dxCurrentDate,
         );
@@ -87,7 +89,7 @@ export class DxSchedulerCurrentViewDirective extends DxBindingDirectiveBase {
     constructor() {
         super();
         this.bindOption<DxSchedulerComponent, DxSchedulerView>(
-            inject(DxSchedulerComponent, { self: true }),
+            injectDxHost<DxSchedulerComponent>(),
             'currentView',
             this.dxCurrentView,
         );
@@ -127,7 +129,7 @@ export class DxFormDataDirective<
                 eventName !== 'optionChanged' ||
                 (eventArgs as DxOptionChangedArgs).name === 'formData',
         };
-        this.bindAdapter(inject(DxFormComponent, { self: true }), this.dxFormData, adapter);
+        this.bindAdapter(injectDxHost<DxFormComponent>(), this.dxFormData, adapter);
     }
 }
 
@@ -169,7 +171,7 @@ export class DxTreeViewSelectedNodeKeysDirective<
             },
         };
         this.bindAdapter<DxTreeViewComponent<TItem, TKey>, readonly TKey[]>(
-            inject(DxTreeViewComponent, { self: true }),
+            injectDxHost<DxTreeViewComponent>(),
             this.dxSelectedNodeKeys,
             adapter,
         );
@@ -204,7 +206,7 @@ export class DxDataGridFocusedRowKeyDirective<
     TKey = unknown,
 > extends DxFocusedRowKeyDirectiveBase<DxDataGridComponent<TRowData, TKey>, TKey> {
     constructor() {
-        super(inject(DxDataGridComponent, { self: true }), 'focusedRowKey');
+        super(injectDxHost<DxDataGridComponent>(), 'focusedRowKey');
     }
 }
 
@@ -215,7 +217,7 @@ export class DxTreeListFocusedRowKeyDirective<
     TKey = unknown,
 > extends DxFocusedRowKeyDirectiveBase<DxTreeListComponent<TRowData, TKey>, TKey> {
     constructor() {
-        super(inject(DxTreeListComponent, { self: true }), 'focusedRowKey');
+        super(injectDxHost<DxTreeListComponent>(), 'focusedRowKey');
     }
 }
 
@@ -239,7 +241,7 @@ export class DxDataGridFilterValueDirective<
     TKey = unknown,
 > extends DxFilterValueDirectiveBase<DxDataGridComponent<TRowData, TKey>> {
     constructor() {
-        super(inject(DxDataGridComponent, { self: true }), 'filterValue');
+        super(injectDxHost<DxDataGridComponent>(), 'filterValue');
     }
 }
 
@@ -250,7 +252,7 @@ export class DxTreeListFilterValueDirective<
     TKey = unknown,
 > extends DxFilterValueDirectiveBase<DxTreeListComponent<TRowData, TKey>> {
     constructor() {
-        super(inject(DxTreeListComponent, { self: true }), 'filterValue');
+        super(injectDxHost<DxTreeListComponent>(), 'filterValue');
     }
 }
 
@@ -360,7 +362,7 @@ export class DxDataGridPageIndexDirective<
     TKey = unknown,
 > extends DxPageIndexDirectiveBase<DxDataGridComponent<TRowData, TKey>> {
     constructor() {
-        super(inject(DxDataGridComponent, { self: true }));
+        super(injectDxHost<DxDataGridComponent>());
     }
 }
 
@@ -371,7 +373,7 @@ export class DxTreeListPageIndexDirective<
     TKey = unknown,
 > extends DxPageIndexDirectiveBase<DxTreeListComponent<TRowData, TKey>> {
     constructor() {
-        super(inject(DxTreeListComponent, { self: true }));
+        super(injectDxHost<DxTreeListComponent>());
     }
 }
 
@@ -382,7 +384,7 @@ export class DxDataGridPageSizeDirective<
     TKey = unknown,
 > extends DxPageSizeDirectiveBase<DxDataGridComponent<TRowData, TKey>> {
     constructor() {
-        super(inject(DxDataGridComponent, { self: true }));
+        super(injectDxHost<DxDataGridComponent>());
     }
 }
 
@@ -393,7 +395,7 @@ export class DxTreeListPageSizeDirective<
     TKey = unknown,
 > extends DxPageSizeDirectiveBase<DxTreeListComponent<TRowData, TKey>> {
     constructor() {
-        super(inject(DxTreeListComponent, { self: true }));
+        super(injectDxHost<DxTreeListComponent>());
     }
 }
 
@@ -474,7 +476,7 @@ export class DxDataGridSearchPanelTextDirective<
     TKey = unknown,
 > extends DxSearchPanelTextDirectiveBase<DxDataGridComponent<TRowData, TKey>> {
     constructor() {
-        super(inject(DxDataGridComponent, { self: true }));
+        super(injectDxHost<DxDataGridComponent>());
     }
 }
 
@@ -485,7 +487,7 @@ export class DxTreeListSearchPanelTextDirective<
     TKey = unknown,
 > extends DxSearchPanelTextDirectiveBase<DxTreeListComponent<TRowData, TKey>> {
     constructor() {
-        super(inject(DxTreeListComponent, { self: true }));
+        super(injectDxHost<DxTreeListComponent>());
     }
 }
 
@@ -559,7 +561,7 @@ export class DxDataGridStateDirective<
     TKey = unknown,
 > extends DxGridStateDirectiveBase<DxDataGridComponent<TRowData, TKey>> {
     constructor() {
-        super(inject(DxDataGridComponent, { self: true }));
+        super(injectDxHost<DxDataGridComponent>());
     }
 }
 
@@ -570,7 +572,7 @@ export class DxTreeListStateDirective<
     TKey = unknown,
 > extends DxGridStateDirectiveBase<DxTreeListComponent<TRowData, TKey>> {
     constructor() {
-        super(inject(DxTreeListComponent, { self: true }));
+        super(injectDxHost<DxTreeListComponent>());
     }
 }
 
@@ -609,26 +611,284 @@ export class DxTreeListExpandedRowKeysDirective<
     constructor() {
         super();
         this.bindOption<DxTreeListComponent<TRowData, TKey>, readonly TKey[]>(
-            inject(DxTreeListComponent, { self: true }),
+            injectDxHost<DxTreeListComponent>(),
             'expandedRowKeys',
             this.dxExpandedRowKeys,
         );
     }
 }
 
+/* Structural view of the TreeView node API used for expansion state. */
+interface TreeNodeLike<TKey> {
+    readonly key?: TKey;
+    readonly expanded?: boolean;
+    readonly items?: readonly TreeNodeLike<TKey>[];
+}
+
+function collectExpandedKeys<TKey>(nodes: readonly TreeNodeLike<TKey>[], into: TKey[]): TKey[] {
+    for (const node of nodes) {
+        if (node.expanded === true && node.key !== undefined) {
+            into.push(node.key);
+        }
+        if (node.items !== undefined && node.items.length > 0) {
+            collectExpandedKeys(node.items, into);
+        }
+    }
+    return into;
+}
+
+/**
+ * `[(dxExpandedNodeKeys)]` for `dx-tree-view` — the set of expanded nodes on
+ * a signal, so a navigation tree comes back opened the way the user left it
+ * and can be driven from outside:
+ *
+ * ```html
+ * <dx-tree-view [(dxExpandedNodeKeys)]="expanded" [items]="items" keyExpr="id" />
+ * ```
+ *
+ * TreeView has no option holding this state (`expandedExpr` names a field on
+ * the *items*), so the adapter is method-based: it reads the `expanded` flag
+ * off `getNodes()` and writes via `collapseAll()` + `expandItem(key)` inside
+ * a `beginUpdate()`/`endUpdate()` batch. The signal holds the *complete* set,
+ * so a new array both expands and collapses to match and `[]` collapses all.
+ * `expandItem` silently no-ops on a key the widget does not know, hence the
+ * post-write re-read (same partial-rejection class as `[(dxSelectedNodeKeys)]`);
+ * `contentReady` re-reads what a data source that arrives after the widget
+ * marks expanded through `expandedExpr`, which fires no item event.
+ */
+@Directive({ selector: 'dx-tree-view[dxExpandedNodeKeys]', exportAs: 'dxExpandedNodeKeys' })
+export class DxTreeViewExpandedNodeKeysDirective<
+    TItem = unknown,
+    TKey = unknown,
+> extends DxBindingDirectiveBase {
+    readonly dxExpandedNodeKeys = model.required<readonly TKey[]>();
+
+    constructor() {
+        super();
+        type TInstance = DxInstanceOf<DxTreeViewComponent<TItem, TKey>>;
+        const adapter: DxBindingAdapter<TInstance, readonly TKey[]> = {
+            events: ['itemExpanded', 'itemCollapsed', 'contentReady'],
+            reReadAfterWrite: true,
+            read: (instance) =>
+                collectExpandedKeys(instance.getNodes() as readonly TreeNodeLike<TKey>[], []),
+            write: (instance, keys) => {
+                instance.beginUpdate();
+                try {
+                    instance.collapseAll();
+                    for (const key of keys) {
+                        void instance.expandItem(key);
+                    }
+                } finally {
+                    instance.endUpdate();
+                }
+            },
+        };
+        this.bindAdapter<DxTreeViewComponent<TItem, TKey>, readonly TKey[]>(
+            injectDxHost<DxTreeViewComponent>(),
+            this.dxExpandedNodeKeys,
+            adapter,
+        );
+    }
+}
+
+/* ------------------------------------------------------------------------ *
+ *  Editing state (4.0). DevExtreme designed `editing.changes` and
+ *  `editing.editRowKey` for external ownership — they are how the React and
+ *  Vue wrappers keep batch edits in application state — and both grids
+ *  declare them on the shared `EditingBase`. Nested options, so both adapters
+ *  are method-based through `option('editing.…')`, accept the `editing`
+ *  root name and re-read on `contentReady` as the family default.
+ * ------------------------------------------------------------------------ */
+
+/** A pending edit as the grids' `editing.changes` declare it: `{ type, key, data }`. */
+export type DxDataChange<TRowData = unknown, TKey = unknown> = DataChange<TRowData, TKey>;
+
+function gridEditingChangesAdapter<TRowData, TKey>(): DxBindingAdapter<
+    DxWidget,
+    readonly DxDataChange<TRowData, TKey>[]
+> {
+    // Cloned both ways: the editing controller keeps its own array and
+    // mutates the entries' `data` objects as the user types, so handing it
+    // the signal's array would let both sides observe one mutation and hide
+    // every change from the structural comparison — the `[(dxFormData)]`
+    // defect, one level down.
+    return gridMethodAdapter<DxWidget, readonly DxDataChange<TRowData, TKey>[]>(
+        'editing',
+        (instance) =>
+            dxStructuralClone(
+                ((instance.option as (name: string) => unknown)('editing.changes') as
+                    | readonly DxDataChange<TRowData, TKey>[]
+                    | undefined) ?? [],
+            ),
+        (instance, changes) => {
+            (instance.option as (name: string, value: unknown) => void)(
+                'editing.changes',
+                dxStructuralClone(changes),
+            );
+        },
+    );
+}
+
+function gridEditRowKeyAdapter<TKey>(): DxBindingAdapter<DxWidget, TKey | null> {
+    return gridMethodAdapter<DxWidget, TKey | null>(
+        'editing',
+        (instance) =>
+            ((instance.option as (name: string) => unknown)('editing.editRowKey') as
+                | TKey
+                | null
+                | undefined) ?? null,
+        (instance, key) => {
+            (instance.option as (name: string, value: unknown) => void)('editing.editRowKey', key);
+        },
+    );
+}
+
+/**
+ * `[(dxEditingChanges)]` base shared by the grid-like widgets — the pending
+ * edits of batch/cell editing as a signal:
+ *
+ * ```html
+ * <dx-data-grid [(dxEditingChanges)]="changes" [dataSource]="rows" keyExpr="id">
+ *   <dxo-editing mode="batch" [allowUpdating]="true" />
+ * </dx-data-grid>
+ * ```
+ *
+ * Each entry is `{ type: 'insert' | 'update' | 'remove', key, data }`; writing
+ * `[]` discards every pending edit, and a saved array restores them. The grid
+ * never shares the signal's objects — see the adapter for why.
+ */
+@Directive()
+export abstract class DxEditingChangesDirectiveBase<
+    THost extends DxHostComponent,
+    TRowData,
+    TKey,
+> extends DxBindingDirectiveBase {
+    readonly dxEditingChanges = model.required<readonly DxDataChange<TRowData, TKey>[]>();
+
+    protected constructor(host: THost) {
+        super();
+        this.bindAdapter<THost, readonly DxDataChange<TRowData, TKey>[]>(
+            host,
+            this.dxEditingChanges,
+            gridEditingChangesAdapter<TRowData, TKey>() as DxBindingAdapter<
+                DxInstanceOf<THost>,
+                readonly DxDataChange<TRowData, TKey>[]
+            >,
+        );
+    }
+}
+
+/** `[(dxEditingChanges)]` for `dx-data-grid` — see {@link DxEditingChangesDirectiveBase}. */
+@Directive({ selector: 'dx-data-grid[dxEditingChanges]', exportAs: 'dxEditingChanges' })
+export class DxDataGridEditingChangesDirective<
+    TRowData = unknown,
+    TKey = unknown,
+> extends DxEditingChangesDirectiveBase<DxDataGridComponent<TRowData, TKey>, TRowData, TKey> {
+    constructor() {
+        super(injectDxHost<DxDataGridComponent>());
+    }
+}
+
+/** `[(dxEditingChanges)]` for `dx-tree-list` — see {@link DxEditingChangesDirectiveBase}. */
+@Directive({ selector: 'dx-tree-list[dxEditingChanges]', exportAs: 'dxEditingChanges' })
+export class DxTreeListEditingChangesDirective<
+    TRowData = unknown,
+    TKey = unknown,
+> extends DxEditingChangesDirectiveBase<DxTreeListComponent<TRowData, TKey>, TRowData, TKey> {
+    constructor() {
+        super(injectDxHost<DxTreeListComponent>());
+    }
+}
+
+/**
+ * `[(dxEditRowKey)]` base shared by the grid-like widgets — the row currently
+ * in row/form/popup edit mode, `null` when none; writing a key opens that
+ * row's editor, writing `null` closes it.
+ */
+@Directive()
+export abstract class DxEditRowKeyDirectiveBase<
+    THost extends DxHostComponent,
+    TKey,
+> extends DxBindingDirectiveBase {
+    readonly dxEditRowKey = model.required<TKey | null>();
+
+    protected constructor(host: THost) {
+        super();
+        this.bindAdapter<THost, TKey | null>(
+            host,
+            this.dxEditRowKey,
+            gridEditRowKeyAdapter<TKey>() as DxBindingAdapter<DxInstanceOf<THost>, TKey | null>,
+        );
+    }
+}
+
+/** `[(dxEditRowKey)]` for `dx-data-grid` — see {@link DxEditRowKeyDirectiveBase}. */
+@Directive({ selector: 'dx-data-grid[dxEditRowKey]', exportAs: 'dxEditRowKey' })
+export class DxDataGridEditRowKeyDirective<
+    TRowData = unknown,
+    TKey = unknown,
+> extends DxEditRowKeyDirectiveBase<DxDataGridComponent<TRowData, TKey>, TKey> {
+    constructor() {
+        super(injectDxHost<DxDataGridComponent>());
+    }
+}
+
+/** `[(dxEditRowKey)]` for `dx-tree-list` — see {@link DxEditRowKeyDirectiveBase}. */
+@Directive({ selector: 'dx-tree-list[dxEditRowKey]', exportAs: 'dxEditRowKey' })
+export class DxTreeListEditRowKeyDirective<
+    TRowData = unknown,
+    TKey = unknown,
+> extends DxEditRowKeyDirectiveBase<DxTreeListComponent<TRowData, TKey>, TKey> {
+    constructor() {
+        super(injectDxHost<DxTreeListComponent>());
+    }
+}
+
+/**
+ * `[(dxSelectionFilter)]` for `dx-data-grid` — deferred selection as a
+ * signal. With `<dxo-selection mode="multiple" [deferred]="true" />` the grid
+ * keeps no key array at all; it keeps a *filter expression* describing the
+ * selected rows, which is what makes "select all" on a remote data source
+ * scale, and what a server can apply directly. This is the remote-scale
+ * counterpart of `[(dxSelectedRowKeys)]`; pair it with `dxRemoteStore`.
+ * `dx-data-grid` only — TreeList declares neither `selectionFilter` nor
+ * `selection.deferred` (26.1.4).
+ */
+@Directive({ selector: 'dx-data-grid[dxSelectionFilter]', exportAs: 'dxSelectionFilter' })
+export class DxDataGridSelectionFilterDirective<
+    TRowData = unknown,
+    TKey = unknown,
+> extends DxBindingDirectiveBase {
+    readonly dxSelectionFilter = model.required<DxFilterExpression | null>();
+
+    constructor() {
+        super();
+        this.bindOption<DxDataGridComponent<TRowData, TKey>, DxFilterExpression | null>(
+            injectDxHost<DxDataGridComponent>(),
+            'selectionFilter',
+            this.dxSelectionFilter,
+        );
+    }
+}
+
 /** All data-component adapter directives, for convenient bulk import. */
 export const DX_DATA_DIRECTIVES = [
+    DxDataGridEditRowKeyDirective,
+    DxDataGridEditingChangesDirective,
     DxDataGridFilterValueDirective,
     DxDataGridFocusedRowKeyDirective,
     DxDataGridPageIndexDirective,
     DxDataGridPageSizeDirective,
     DxDataGridSearchPanelTextDirective,
     DxDataGridSelectedRowKeysDirective,
+    DxDataGridSelectionFilterDirective,
     DxDataGridStateDirective,
     DxFormDataDirective,
     DxGanttSelectedRowKeyDirective,
     DxSchedulerCurrentDateDirective,
     DxSchedulerCurrentViewDirective,
+    DxTreeListEditRowKeyDirective,
+    DxTreeListEditingChangesDirective,
     DxTreeListExpandedRowKeysDirective,
     DxTreeListFilterValueDirective,
     DxTreeListFocusedRowKeyDirective,
@@ -637,5 +897,6 @@ export const DX_DATA_DIRECTIVES = [
     DxTreeListSearchPanelTextDirective,
     DxTreeListSelectedRowKeysDirective,
     DxTreeListStateDirective,
+    DxTreeViewExpandedNodeKeysDirective,
     DxTreeViewSelectedNodeKeysDirective,
 ] as const;

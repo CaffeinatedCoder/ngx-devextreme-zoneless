@@ -6,13 +6,16 @@ fully typed:
 
 ```ts
 import {
-  bindDxOption, dxOptionSignal, dxEventSignal, injectDxInstance,
+  bindDxOption, dxOptionSignal, dxEventSignal, injectDxHost, injectDxInstance,
 } from 'ngx-devextreme-zoneless';
 
 @Component({ /* ... */ })
 export class MyComponent {
   // On the same element (inside a directive):
   private readonly textBox = inject(DxTextBoxComponent, { self: true });
+  // …or with the wrapper as a type-only import — what the shipped directives
+  // do, so that no entry point carries widget runtime:
+  private readonly host = injectDxHost<DxTextBoxComponent>();
 
   // Two-way signal for any option — names & types from DevExtreme Properties:
   readonly placeholder = dxOptionSignal(this.textBox, 'placeholder');

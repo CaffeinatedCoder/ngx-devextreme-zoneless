@@ -1,24 +1,27 @@
 import {
     Directive,
-    inject,
     input,
     model,
     untracked,
     type Signal,
 } from '@angular/core';
-import { DxChartComponent } from 'devextreme-angular/ui/chart';
-import { DxPieChartComponent } from 'devextreme-angular/ui/pie-chart';
-import { DxRangeSelectorComponent } from 'devextreme-angular/ui/range-selector';
+import type { DxChartComponent } from 'devextreme-angular/ui/chart';
+import type { DxPieChartComponent } from 'devextreme-angular/ui/pie-chart';
+import type { DxPolarChartComponent } from 'devextreme-angular/ui/polar-chart';
+import type { DxRangeSelectorComponent } from 'devextreme-angular/ui/range-selector';
 import {
     DxBindingDirectiveBase,
     DxValueDirectiveBase,
     dxStructuralEquals,
+    injectDxHost,
     onDxWidgetReady,
     type DxAdapterEventName,
     type DxBindingAdapter,
     type DxHostComponent,
+    type DxHostOptionValue,
     type DxHostValue,
     type DxInstanceOf,
+    type DxOptionChangedArgs,
     type DxWidget,
 } from 'ngx-devextreme-zoneless/core';
 
@@ -183,7 +186,7 @@ export abstract class DxSelectedPointsDirectiveBase<
 @Directive({ selector: 'dx-chart[dxSelectedPoints]', exportAs: 'dxSelectedPoints' })
 export class DxChartSelectedPointsDirective extends DxSelectedPointsDirectiveBase<DxChartComponent> {
     constructor() {
-        super(inject(DxChartComponent, { self: true }));
+        super(injectDxHost<DxChartComponent>());
     }
 }
 
@@ -191,7 +194,76 @@ export class DxChartSelectedPointsDirective extends DxSelectedPointsDirectiveBas
 @Directive({ selector: 'dx-pie-chart[dxSelectedPoints]', exportAs: 'dxSelectedPoints' })
 export class DxPieChartSelectedPointsDirective extends DxSelectedPointsDirectiveBase<DxPieChartComponent> {
     constructor() {
-        super(inject(DxPieChartComponent, { self: true }));
+        super(injectDxHost<DxPieChartComponent>());
+    }
+}
+
+/** `[(dxSelectedPoints)]` for `dx-polar-chart` — the point-selection API lives on the shared chart base. */
+@Directive({ selector: 'dx-polar-chart[dxSelectedPoints]', exportAs: 'dxSelectedPoints' })
+export class DxPolarChartSelectedPointsDirective extends DxSelectedPointsDirectiveBase<DxPolarChartComponent> {
+    constructor() {
+        super(injectDxHost<DxPolarChartComponent>());
+    }
+}
+
+/** The argument axis' visual range, as `dx-chart` declares it. */
+export type DxChartVisualRange = NonNullable<
+    NonNullable<DxHostOptionValue<DxChartComponent, 'argumentAxis'>>['visualRange']
+>;
+
+/**
+ * `[(dxVisualRange)]` for `dx-chart` — two-way binds the argument axis'
+ * visual range, which is what user zoom and pan change, so several charts
+ * can share one window or a range can be persisted and restored:
+ *
+ * ```html
+ * <dx-chart [(dxVisualRange)]="window" [dataSource]="data">
+ *   <dxo-zoom-and-pan argumentAxis="both" [allowMouseWheel]="true" />
+ * </dx-chart>
+ * ```
+ *
+ * `argumentAxis.visualRange` is a nested option, so this is a method-based
+ * adapter; the chart writes it back through the regular option setter on
+ * every zoom/pan (`_notifyVisualRange` → `option('argumentAxis.visualRange', …)`,
+ * verified against 26.1.4), so `optionChanged` filtered on `argumentAxis`
+ * plus `zoomEnd` is the complete set. The chart normalizes what it is handed
+ * — a `[start, end]` array is read back as `{ startValue, endValue }` — so
+ * the adapter re-reads after each write and the signal converges to the
+ * chart's representation. Once rendered, the chart reports the *full* data
+ * range through the same setter (measured: `{ startValue: 1, endValue: 10 }`
+ * on a 1..10 axis before any zoom), so the signal is only `undefined` before
+ * the first render — and `undefined` means "do not push", per the engine rule.
+ */
+@Directive({ selector: 'dx-chart[dxVisualRange]', exportAs: 'dxVisualRange' })
+export class DxChartVisualRangeDirective extends DxBindingDirectiveBase {
+    readonly dxVisualRange = model.required<DxChartVisualRange | undefined>();
+    readonly dxVisualRangeDebounce = input(0);
+
+    constructor() {
+        super();
+        const adapter: DxBindingAdapter<DxInstanceOf<DxChartComponent>, DxChartVisualRange | undefined> = {
+            events: ['optionChanged', 'zoomEnd'],
+            reReadAfterWrite: true,
+            read: (instance) =>
+                (instance.option as (name: string) => unknown)('argumentAxis.visualRange') as
+                    | DxChartVisualRange
+                    | undefined,
+            write: (instance, range) => {
+                (instance.option as (name: string, value: unknown) => void)(
+                    'argumentAxis.visualRange',
+                    range,
+                );
+            },
+            accept: (eventName, eventArgs) =>
+                eventName !== 'optionChanged' ||
+                (eventArgs as DxOptionChangedArgs).name === 'argumentAxis',
+        };
+        this.bindAdapter<DxChartComponent, DxChartVisualRange | undefined>(
+            injectDxHost<DxChartComponent>(),
+            this.dxVisualRange,
+            adapter,
+            { debounceMs: () => this.dxVisualRangeDebounce() },
+        );
     }
 }
 
@@ -205,13 +277,15 @@ export class DxRangeSelectorValueDirective extends DxValueDirectiveBase<
     DxRangeSelectorValue
 > {
     constructor() {
-        super(inject(DxRangeSelectorComponent, { self: true }), 'value');
+        super(injectDxHost<DxRangeSelectorComponent>(), 'value');
     }
 }
 
 /** All visualization adapter directives, for convenient bulk import. */
 export const DX_VISUALIZATION_DIRECTIVES = [
     DxChartSelectedPointsDirective,
+    DxChartVisualRangeDirective,
     DxPieChartSelectedPointsDirective,
+    DxPolarChartSelectedPointsDirective,
     DxRangeSelectorValueDirective,
 ] as const;

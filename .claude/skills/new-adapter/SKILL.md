@@ -16,8 +16,9 @@ is the checklist over it.
 
 Which entry point owns the widget: `editors/` (value-holding), `navigation/` (index/selection),
 `overlays/` (visibility), `data/` (grids, form, scheduler, treeview), `visualization/` (charts,
-range selector). The entry point may import only `devextreme-angular/ui/<widget>` modules it actually
-adapts — a stray import breaks `npm run probe`, which is the probe working.
+range selector). Import the wrapper class as `import type` only and take the host from
+`injectDxHost<DxXComponent>()` — a value import of a wrapper breaks `npm run probe`, which is the
+probe working (the Packaging rule in CLAUDE.md says why).
 
 ## 2. Choose the adapter kind
 

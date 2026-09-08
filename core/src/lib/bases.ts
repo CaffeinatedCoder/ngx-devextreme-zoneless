@@ -113,6 +113,24 @@ export abstract class DxSelectedIndexDirectiveBase<
     }
 }
 
+/**
+ * `[(dxOpened)]` — for widgets with an open/closed state: the Drawer, the
+ * drop-down editors (SelectBox, Lookup, DateBox, TagBox, ...) and the
+ * DropDownButton. Every way the widget closes — outside click, escape, an
+ * item pick, tab-out — lands back in the signal.
+ */
+@Directive()
+export abstract class DxOpenedDirectiveBase<
+    THost extends DxHostComponent,
+> extends DxBindingDirectiveBase {
+    readonly dxOpened = model.required<boolean>();
+
+    protected constructor(host: THost, optionName: DxHostOptionName<THost>) {
+        super();
+        this.bindOption<THost, boolean>(host, optionName, this.dxOpened);
+    }
+}
+
 /** `[(dxVisible)]` — for overlay widgets (Popup, Popover, Toast, ...). */
 @Directive()
 export abstract class DxVisibleDirectiveBase<

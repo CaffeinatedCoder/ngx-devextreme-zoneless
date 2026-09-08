@@ -1,5 +1,5 @@
 import { DX_DATA_DIRECTIVES } from 'ngx-devextreme-zoneless/data';
-import { DX_VALUE_DIRECTIVES } from 'ngx-devextreme-zoneless/editors';
+import { DX_OPENED_DIRECTIVES, DX_VALUE_DIRECTIVES } from 'ngx-devextreme-zoneless/editors';
 import { DX_NAVIGATION_DIRECTIVES } from 'ngx-devextreme-zoneless/navigation';
 import { DX_VISIBLE_DIRECTIVES } from 'ngx-devextreme-zoneless/overlays';
 import { DX_VISUALIZATION_DIRECTIVES } from 'ngx-devextreme-zoneless/visualization';
@@ -13,6 +13,7 @@ import { DX_VISUALIZATION_DIRECTIVES } from 'ngx-devextreme-zoneless/visualizati
  */
 export const DX_SIGNAL_DIRECTIVES = [
     ...DX_VALUE_DIRECTIVES,
+    ...DX_OPENED_DIRECTIVES,
     ...DX_NAVIGATION_DIRECTIVES,
     ...DX_VISIBLE_DIRECTIVES,
     ...DX_DATA_DIRECTIVES,

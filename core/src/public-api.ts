@@ -55,17 +55,10 @@ export {
     dxOptionSignal,
     dxEventSignal,
     dxInstanceSignal,
+    injectDxHost,
     injectDxInstance,
 } from './lib/signals';
 export type { DxOptionSignalOptions } from './lib/signals';
-
-// Data loading (signals → DataSource)
-export { dxArrayStoreSource, dxReloadOn } from './lib/data-source';
-export type { DxArrayStoreSourceOptions, DxReloadTarget } from './lib/data-source';
-
-// Remote data (resource()-style loading state over a DataSource)
-export { dxRemoteStore, dxLoadOptionsParams } from './lib/remote';
-export type { DxRemoteLoader, DxRemoteStore, DxRemoteStoreOptions } from './lib/remote';
 
 // Directive bases (for building adapters for components not covered out of the box)
 export {
@@ -75,4 +68,5 @@ export {
     DxSelectedItemKeysDirectiveBase,
     DxSelectedIndexDirectiveBase,
     DxVisibleDirectiveBase,
+    DxOpenedDirectiveBase,
 } from './lib/bases';

@@ -1,25 +1,27 @@
-import { Directive, inject } from '@angular/core';
-import { DxAutocompleteComponent } from 'devextreme-angular/ui/autocomplete';
-import { DxCalendarComponent } from 'devextreme-angular/ui/calendar';
-import { DxCheckBoxComponent } from 'devextreme-angular/ui/check-box';
-import { DxColorBoxComponent } from 'devextreme-angular/ui/color-box';
-import { DxDateBoxComponent } from 'devextreme-angular/ui/date-box';
-import { DxDateRangeBoxComponent } from 'devextreme-angular/ui/date-range-box';
-import { DxDropDownBoxComponent } from 'devextreme-angular/ui/drop-down-box';
-import { DxFilterBuilderComponent } from 'devextreme-angular/ui/filter-builder';
-import { DxHtmlEditorComponent } from 'devextreme-angular/ui/html-editor';
-import { DxLookupComponent } from 'devextreme-angular/ui/lookup';
-import { DxNumberBoxComponent } from 'devextreme-angular/ui/number-box';
-import { DxRadioGroupComponent } from 'devextreme-angular/ui/radio-group';
-import { DxRangeSliderComponent } from 'devextreme-angular/ui/range-slider';
-import { DxSelectBoxComponent } from 'devextreme-angular/ui/select-box';
-import { DxSliderComponent } from 'devextreme-angular/ui/slider';
-import { DxSwitchComponent } from 'devextreme-angular/ui/switch';
-import { DxTagBoxComponent } from 'devextreme-angular/ui/tag-box';
-import { DxTextAreaComponent } from 'devextreme-angular/ui/text-area';
-import { DxTextBoxComponent } from 'devextreme-angular/ui/text-box';
+import { Directive } from '@angular/core';
+import type { DxAutocompleteComponent } from 'devextreme-angular/ui/autocomplete';
+import type { DxCalendarComponent } from 'devextreme-angular/ui/calendar';
+import type { DxCheckBoxComponent } from 'devextreme-angular/ui/check-box';
+import type { DxColorBoxComponent } from 'devextreme-angular/ui/color-box';
+import type { DxDateBoxComponent } from 'devextreme-angular/ui/date-box';
+import type { DxDateRangeBoxComponent } from 'devextreme-angular/ui/date-range-box';
+import type { DxDropDownBoxComponent } from 'devextreme-angular/ui/drop-down-box';
+import type { DxFilterBuilderComponent } from 'devextreme-angular/ui/filter-builder';
+import type { DxHtmlEditorComponent } from 'devextreme-angular/ui/html-editor';
+import type { DxLookupComponent } from 'devextreme-angular/ui/lookup';
+import type { DxNumberBoxComponent } from 'devextreme-angular/ui/number-box';
+import type { DxRadioGroupComponent } from 'devextreme-angular/ui/radio-group';
+import type { DxRangeSliderComponent } from 'devextreme-angular/ui/range-slider';
+import type { DxSelectBoxComponent } from 'devextreme-angular/ui/select-box';
+import type { DxSliderComponent } from 'devextreme-angular/ui/slider';
+import type { DxSwitchComponent } from 'devextreme-angular/ui/switch';
+import type { DxTagBoxComponent } from 'devextreme-angular/ui/tag-box';
+import type { DxTextAreaComponent } from 'devextreme-angular/ui/text-area';
+import type { DxTextBoxComponent } from 'devextreme-angular/ui/text-box';
 import {
+    DxOpenedDirectiveBase,
     DxValueDirectiveBase,
+    injectDxHost,
     type DxDateRange,
     type DxDateValue,
     type DxFilterExpression,
@@ -38,14 +40,14 @@ import {
 @Directive({ selector: 'dx-text-box[dxValue]', exportAs: 'dxValue' })
 export class DxTextBoxValueDirective extends DxValueDirectiveBase<DxTextBoxComponent, string> {
     constructor() {
-        super(inject(DxTextBoxComponent, { self: true }), 'value');
+        super(injectDxHost<DxTextBoxComponent>(), 'value');
     }
 }
 
 @Directive({ selector: 'dx-text-area[dxValue]', exportAs: 'dxValue' })
 export class DxTextAreaValueDirective extends DxValueDirectiveBase<DxTextAreaComponent, string> {
     constructor() {
-        super(inject(DxTextAreaComponent, { self: true }), 'value');
+        super(injectDxHost<DxTextAreaComponent>(), 'value');
     }
 }
 
@@ -55,7 +57,7 @@ export class DxNumberBoxValueDirective extends DxValueDirectiveBase<
     number | null
 > {
     constructor() {
-        super(inject(DxNumberBoxComponent, { self: true }), 'value');
+        super(injectDxHost<DxNumberBoxComponent>(), 'value');
     }
 }
 
@@ -65,14 +67,14 @@ export class DxCheckBoxValueDirective extends DxValueDirectiveBase<
     boolean | null
 > {
     constructor() {
-        super(inject(DxCheckBoxComponent, { self: true }), 'value');
+        super(injectDxHost<DxCheckBoxComponent>(), 'value');
     }
 }
 
 @Directive({ selector: 'dx-switch[dxValue]', exportAs: 'dxValue' })
 export class DxSwitchValueDirective extends DxValueDirectiveBase<DxSwitchComponent, boolean> {
     constructor() {
-        super(inject(DxSwitchComponent, { self: true }), 'value');
+        super(injectDxHost<DxSwitchComponent>(), 'value');
     }
 }
 
@@ -82,7 +84,7 @@ export class DxDateBoxValueDirective extends DxValueDirectiveBase<
     DxDateValue | null
 > {
     constructor() {
-        super(inject(DxDateBoxComponent, { self: true }), 'value');
+        super(injectDxHost<DxDateBoxComponent>(), 'value');
     }
 }
 
@@ -92,7 +94,7 @@ export class DxDateRangeBoxValueDirective extends DxValueDirectiveBase<
     DxDateRange
 > {
     constructor() {
-        super(inject(DxDateRangeBoxComponent, { self: true }), 'value');
+        super(injectDxHost<DxDateRangeBoxComponent>(), 'value');
     }
 }
 
@@ -102,7 +104,7 @@ export class DxCalendarValueDirective extends DxValueDirectiveBase<
     DxDateValue | readonly DxDateValue[] | null
 > {
     constructor() {
-        super(inject(DxCalendarComponent, { self: true }), 'value');
+        super(injectDxHost<DxCalendarComponent>(), 'value');
     }
 }
 
@@ -112,7 +114,7 @@ export class DxColorBoxValueDirective extends DxValueDirectiveBase<
     string | null
 > {
     constructor() {
-        super(inject(DxColorBoxComponent, { self: true }), 'value');
+        super(injectDxHost<DxColorBoxComponent>(), 'value');
     }
 }
 
@@ -122,14 +124,14 @@ export class DxAutocompleteValueDirective extends DxValueDirectiveBase<
     string | null
 > {
     constructor() {
-        super(inject(DxAutocompleteComponent, { self: true }), 'value');
+        super(injectDxHost<DxAutocompleteComponent>(), 'value');
     }
 }
 
 @Directive({ selector: 'dx-slider[dxValue]', exportAs: 'dxValue' })
 export class DxSliderValueDirective extends DxValueDirectiveBase<DxSliderComponent, number> {
     constructor() {
-        super(inject(DxSliderComponent, { self: true }), 'value');
+        super(injectDxHost<DxSliderComponent>(), 'value');
     }
 }
 
@@ -139,7 +141,7 @@ export class DxRangeSliderValueDirective extends DxValueDirectiveBase<
     DxNumberRange
 > {
     constructor() {
-        super(inject(DxRangeSliderComponent, { self: true }), 'value');
+        super(injectDxHost<DxRangeSliderComponent>(), 'value');
     }
 }
 
@@ -149,7 +151,7 @@ export class DxSelectBoxValueDirective<TValue = unknown> extends DxValueDirectiv
     TValue
 > {
     constructor() {
-        super(inject(DxSelectBoxComponent, { self: true }), 'value');
+        super(injectDxHost<DxSelectBoxComponent>(), 'value');
     }
 }
 
@@ -159,7 +161,7 @@ export class DxLookupValueDirective<TValue = unknown> extends DxValueDirectiveBa
     TValue
 > {
     constructor() {
-        super(inject(DxLookupComponent, { self: true }), 'value');
+        super(injectDxHost<DxLookupComponent>(), 'value');
     }
 }
 
@@ -169,7 +171,7 @@ export class DxDropDownBoxValueDirective<TValue = unknown> extends DxValueDirect
     TValue
 > {
     constructor() {
-        super(inject(DxDropDownBoxComponent, { self: true }), 'value');
+        super(injectDxHost<DxDropDownBoxComponent>(), 'value');
     }
 }
 
@@ -179,7 +181,7 @@ export class DxRadioGroupValueDirective<TValue = unknown> extends DxValueDirecti
     TValue
 > {
     constructor() {
-        super(inject(DxRadioGroupComponent, { self: true }), 'value');
+        super(injectDxHost<DxRadioGroupComponent>(), 'value');
     }
 }
 
@@ -189,7 +191,7 @@ export class DxTagBoxValueDirective<TKey = string | number> extends DxValueDirec
     readonly TKey[]
 > {
     constructor() {
-        super(inject(DxTagBoxComponent, { self: true }), 'value');
+        super(injectDxHost<DxTagBoxComponent>(), 'value');
     }
 }
 
@@ -199,7 +201,7 @@ export class DxHtmlEditorValueDirective extends DxValueDirectiveBase<
     string
 > {
     constructor() {
-        super(inject(DxHtmlEditorComponent, { self: true }), 'value');
+        super(injectDxHost<DxHtmlEditorComponent>(), 'value');
     }
 }
 
@@ -209,9 +211,86 @@ export class DxFilterBuilderValueDirective extends DxValueDirectiveBase<
     DxFilterExpression | null
 > {
     constructor() {
-        super(inject(DxFilterBuilderComponent, { self: true }), 'value');
+        super(injectDxHost<DxFilterBuilderComponent>(), 'value');
     }
 }
+
+/**
+ * `[(dxOpened)]` adapter directives for the drop-down editors — the popup's
+ * open state on a signal, so it can be driven from outside and every way it
+ * closes (outside click, escape, item pick, tab-out) is observed. The widget
+ * writes `opened` through its regular option setter on every user toggle
+ * (`_toggleOpenState` → `option('opened', …)`, verified against 26.1.4), so
+ * this is a plain option binding with no re-read.
+ */
+
+@Directive({ selector: 'dx-select-box[dxOpened]', exportAs: 'dxOpened' })
+export class DxSelectBoxOpenedDirective extends DxOpenedDirectiveBase<DxSelectBoxComponent> {
+    constructor() {
+        super(injectDxHost<DxSelectBoxComponent>(), 'opened');
+    }
+}
+
+@Directive({ selector: 'dx-lookup[dxOpened]', exportAs: 'dxOpened' })
+export class DxLookupOpenedDirective extends DxOpenedDirectiveBase<DxLookupComponent> {
+    constructor() {
+        super(injectDxHost<DxLookupComponent>(), 'opened');
+    }
+}
+
+@Directive({ selector: 'dx-date-box[dxOpened]', exportAs: 'dxOpened' })
+export class DxDateBoxOpenedDirective extends DxOpenedDirectiveBase<DxDateBoxComponent> {
+    constructor() {
+        super(injectDxHost<DxDateBoxComponent>(), 'opened');
+    }
+}
+
+@Directive({ selector: 'dx-date-range-box[dxOpened]', exportAs: 'dxOpened' })
+export class DxDateRangeBoxOpenedDirective extends DxOpenedDirectiveBase<DxDateRangeBoxComponent> {
+    constructor() {
+        super(injectDxHost<DxDateRangeBoxComponent>(), 'opened');
+    }
+}
+
+@Directive({ selector: 'dx-tag-box[dxOpened]', exportAs: 'dxOpened' })
+export class DxTagBoxOpenedDirective extends DxOpenedDirectiveBase<DxTagBoxComponent> {
+    constructor() {
+        super(injectDxHost<DxTagBoxComponent>(), 'opened');
+    }
+}
+
+@Directive({ selector: 'dx-drop-down-box[dxOpened]', exportAs: 'dxOpened' })
+export class DxDropDownBoxOpenedDirective extends DxOpenedDirectiveBase<DxDropDownBoxComponent> {
+    constructor() {
+        super(injectDxHost<DxDropDownBoxComponent>(), 'opened');
+    }
+}
+
+@Directive({ selector: 'dx-autocomplete[dxOpened]', exportAs: 'dxOpened' })
+export class DxAutocompleteOpenedDirective extends DxOpenedDirectiveBase<DxAutocompleteComponent> {
+    constructor() {
+        super(injectDxHost<DxAutocompleteComponent>(), 'opened');
+    }
+}
+
+@Directive({ selector: 'dx-color-box[dxOpened]', exportAs: 'dxOpened' })
+export class DxColorBoxOpenedDirective extends DxOpenedDirectiveBase<DxColorBoxComponent> {
+    constructor() {
+        super(injectDxHost<DxColorBoxComponent>(), 'opened');
+    }
+}
+
+/** All drop-down editor `[(dxOpened)]` directives, for convenient bulk import. */
+export const DX_OPENED_DIRECTIVES = [
+    DxAutocompleteOpenedDirective,
+    DxColorBoxOpenedDirective,
+    DxDateBoxOpenedDirective,
+    DxDateRangeBoxOpenedDirective,
+    DxDropDownBoxOpenedDirective,
+    DxLookupOpenedDirective,
+    DxSelectBoxOpenedDirective,
+    DxTagBoxOpenedDirective,
+] as const;
 
 /** All editor `[(dxValue)]` directives, for convenient bulk import. */
 export const DX_VALUE_DIRECTIVES = [

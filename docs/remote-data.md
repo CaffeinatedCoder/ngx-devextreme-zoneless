@@ -1,5 +1,11 @@
 # Data loading and remote data
 
+Everything on this page — `dxArrayStoreSource`, `dxReloadOn`, `dxRemoteStore`,
+`dxLoadOptionsParams` — is exported from the main entry point and from
+`ngx-devextreme-zoneless/data-source`. It is not in `/core` (since 4.0): these
+helpers construct `DataSource`/`CustomStore`, and that runtime import of
+DevExtreme's data layer belongs only in the chunks that load data.
+
 Two-way state is one half of the zoneless problem; the other half is data
 loading — DevExtreme components load through `DataSource`/stores, which know
 nothing about signals.
@@ -186,6 +192,13 @@ headers, interceptors and `AbortSignal` stay in your hands.
   load and is cleared by the next successful one; `reload()` is the retry.
   The widget additionally shows its own load-error row — `error` is for UI
   outside the widget.
+- **Loaded data, outside the widget.** `items()` is the most recent
+  successful load as the `DataSource` reports it — the current page of a
+  paged grid, the group objects of a grouped one — and `totalCount()` the
+  count the server sent with it (`undefined` when it sent none; a widget only
+  asks for one when it pages). Both are fed by the DataSource's `changed`
+  event, so a header count or an empty-state message describes exactly what
+  the widget renders, with no second request (4.0).
 - **Page ownership.** A dependency change is a new query, so the store resets
   to page 0 (mirroring `DataSource.filter()` semantics). Manual `reload()`
   refetches the same query and keeps the page. You never manage `pageIndex`

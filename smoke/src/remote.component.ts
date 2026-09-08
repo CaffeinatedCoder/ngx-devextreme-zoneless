@@ -94,6 +94,8 @@ function combineFilters(
             <button data-testid="orders-break" (click)="breakLoader.set(true)">break loader</button>
             <button data-testid="orders-ignore-abort" (click)="ignoreAbort.set(true)">ignore abort</button>
             <span class="readout" data-testid="orders-page">{{ ordersPage() }}</span>
+            <span class="readout" data-testid="orders-items">{{ orders.items().length }}</span>
+            <span class="readout" data-testid="orders-total">{{ orders.totalCount() ?? 'none' }}</span>
         </div>
         @if (showOrdersGrid()) {
             <dx-data-grid

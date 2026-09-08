@@ -1,26 +1,27 @@
 import { Directive } from '@angular/core';
-import { DxAutocompleteComponent } from 'devextreme-angular/ui/autocomplete';
-import { DxCalendarComponent } from 'devextreme-angular/ui/calendar';
-import { DxCheckBoxComponent } from 'devextreme-angular/ui/check-box';
-import { DxColorBoxComponent } from 'devextreme-angular/ui/color-box';
-import { DxDateBoxComponent } from 'devextreme-angular/ui/date-box';
-import { DxDateRangeBoxComponent } from 'devextreme-angular/ui/date-range-box';
-import { DxDropDownBoxComponent } from 'devextreme-angular/ui/drop-down-box';
-import { DxHtmlEditorComponent } from 'devextreme-angular/ui/html-editor';
-import { DxLookupComponent } from 'devextreme-angular/ui/lookup';
-import { DxNumberBoxComponent } from 'devextreme-angular/ui/number-box';
-import { DxRadioGroupComponent } from 'devextreme-angular/ui/radio-group';
-import { DxRangeSliderComponent } from 'devextreme-angular/ui/range-slider';
-import { DxSelectBoxComponent } from 'devextreme-angular/ui/select-box';
-import { DxSliderComponent } from 'devextreme-angular/ui/slider';
-import { DxSwitchComponent } from 'devextreme-angular/ui/switch';
-import { DxTagBoxComponent } from 'devextreme-angular/ui/tag-box';
-import { DxTextAreaComponent } from 'devextreme-angular/ui/text-area';
-import { DxTextBoxComponent } from 'devextreme-angular/ui/text-box';
-import type {
-    DxDateRange,
-    DxDateValue,
-    DxNumberRange,
+import type { DxAutocompleteComponent } from 'devextreme-angular/ui/autocomplete';
+import type { DxCalendarComponent } from 'devextreme-angular/ui/calendar';
+import type { DxCheckBoxComponent } from 'devextreme-angular/ui/check-box';
+import type { DxColorBoxComponent } from 'devextreme-angular/ui/color-box';
+import type { DxDateBoxComponent } from 'devextreme-angular/ui/date-box';
+import type { DxDateRangeBoxComponent } from 'devextreme-angular/ui/date-range-box';
+import type { DxDropDownBoxComponent } from 'devextreme-angular/ui/drop-down-box';
+import type { DxHtmlEditorComponent } from 'devextreme-angular/ui/html-editor';
+import type { DxLookupComponent } from 'devextreme-angular/ui/lookup';
+import type { DxNumberBoxComponent } from 'devextreme-angular/ui/number-box';
+import type { DxRadioGroupComponent } from 'devextreme-angular/ui/radio-group';
+import type { DxRangeSliderComponent } from 'devextreme-angular/ui/range-slider';
+import type { DxSelectBoxComponent } from 'devextreme-angular/ui/select-box';
+import type { DxSliderComponent } from 'devextreme-angular/ui/slider';
+import type { DxSwitchComponent } from 'devextreme-angular/ui/switch';
+import type { DxTagBoxComponent } from 'devextreme-angular/ui/tag-box';
+import type { DxTextAreaComponent } from 'devextreme-angular/ui/text-area';
+import type { DxTextBoxComponent } from 'devextreme-angular/ui/text-box';
+import {
+    injectDxHost,
+    type DxDateRange,
+    type DxDateValue,
+    type DxNumberRange,
 } from 'ngx-devextreme-zoneless/core';
 import { DxFieldStateDirectiveBase } from './base';
 
@@ -43,7 +44,7 @@ export class DxTextBoxFieldStateDirective extends DxFieldStateDirectiveBase<
     string
 > {
     constructor() {
-        super(DxTextBoxComponent);
+        super(injectDxHost<DxTextBoxComponent>());
     }
 }
 
@@ -53,7 +54,7 @@ export class DxTextAreaFieldStateDirective extends DxFieldStateDirectiveBase<
     string
 > {
     constructor() {
-        super(DxTextAreaComponent);
+        super(injectDxHost<DxTextAreaComponent>());
     }
 }
 
@@ -63,7 +64,7 @@ export class DxNumberBoxFieldStateDirective extends DxFieldStateDirectiveBase<
     number | null
 > {
     constructor() {
-        super(DxNumberBoxComponent);
+        super(injectDxHost<DxNumberBoxComponent>());
     }
 }
 
@@ -73,7 +74,7 @@ export class DxCheckBoxFieldStateDirective extends DxFieldStateDirectiveBase<
     boolean | null
 > {
     constructor() {
-        super(DxCheckBoxComponent);
+        super(injectDxHost<DxCheckBoxComponent>());
     }
 }
 
@@ -83,7 +84,7 @@ export class DxSwitchFieldStateDirective extends DxFieldStateDirectiveBase<
     boolean
 > {
     constructor() {
-        super(DxSwitchComponent);
+        super(injectDxHost<DxSwitchComponent>());
     }
 }
 
@@ -93,7 +94,7 @@ export class DxDateBoxFieldStateDirective extends DxFieldStateDirectiveBase<
     DxDateValue | null
 > {
     constructor() {
-        super(DxDateBoxComponent);
+        super(injectDxHost<DxDateBoxComponent>());
     }
 }
 
@@ -103,7 +104,7 @@ export class DxDateRangeBoxFieldStateDirective extends DxFieldStateDirectiveBase
     DxDateRange
 > {
     constructor() {
-        super(DxDateRangeBoxComponent);
+        super(injectDxHost<DxDateRangeBoxComponent>());
     }
 }
 
@@ -113,7 +114,7 @@ export class DxCalendarFieldStateDirective extends DxFieldStateDirectiveBase<
     DxDateValue | readonly DxDateValue[] | null
 > {
     constructor() {
-        super(DxCalendarComponent);
+        super(injectDxHost<DxCalendarComponent>());
     }
 }
 
@@ -123,7 +124,7 @@ export class DxColorBoxFieldStateDirective extends DxFieldStateDirectiveBase<
     string | null
 > {
     constructor() {
-        super(DxColorBoxComponent);
+        super(injectDxHost<DxColorBoxComponent>());
     }
 }
 
@@ -133,7 +134,7 @@ export class DxAutocompleteFieldStateDirective extends DxFieldStateDirectiveBase
     string | null
 > {
     constructor() {
-        super(DxAutocompleteComponent);
+        super(injectDxHost<DxAutocompleteComponent>());
     }
 }
 
@@ -143,7 +144,7 @@ export class DxSliderFieldStateDirective extends DxFieldStateDirectiveBase<
     number
 > {
     constructor() {
-        super(DxSliderComponent);
+        super(injectDxHost<DxSliderComponent>());
     }
 }
 
@@ -153,7 +154,7 @@ export class DxRangeSliderFieldStateDirective extends DxFieldStateDirectiveBase<
     DxNumberRange
 > {
     constructor() {
-        super(DxRangeSliderComponent);
+        super(injectDxHost<DxRangeSliderComponent>());
     }
 }
 
@@ -163,7 +164,7 @@ export class DxSelectBoxFieldStateDirective<TValue = unknown> extends DxFieldSta
     TValue
 > {
     constructor() {
-        super(DxSelectBoxComponent);
+        super(injectDxHost<DxSelectBoxComponent>());
     }
 }
 
@@ -173,7 +174,7 @@ export class DxLookupFieldStateDirective<TValue = unknown> extends DxFieldStateD
     TValue
 > {
     constructor() {
-        super(DxLookupComponent);
+        super(injectDxHost<DxLookupComponent>());
     }
 }
 
@@ -183,7 +184,7 @@ export class DxDropDownBoxFieldStateDirective<TValue = unknown> extends DxFieldS
     TValue
 > {
     constructor() {
-        super(DxDropDownBoxComponent);
+        super(injectDxHost<DxDropDownBoxComponent>());
     }
 }
 
@@ -193,7 +194,7 @@ export class DxRadioGroupFieldStateDirective<TValue = unknown> extends DxFieldSt
     TValue
 > {
     constructor() {
-        super(DxRadioGroupComponent);
+        super(injectDxHost<DxRadioGroupComponent>());
     }
 }
 
@@ -202,7 +203,7 @@ export class DxTagBoxFieldStateDirective<
     TKey = string | number,
 > extends DxFieldStateDirectiveBase<DxTagBoxComponent, readonly TKey[]> {
     constructor() {
-        super(DxTagBoxComponent);
+        super(injectDxHost<DxTagBoxComponent>());
     }
 }
 
@@ -212,7 +213,7 @@ export class DxHtmlEditorFieldStateDirective extends DxFieldStateDirectiveBase<
     string
 > {
     constructor() {
-        super(DxHtmlEditorComponent);
+        super(injectDxHost<DxHtmlEditorComponent>());
     }
 }
 

@@ -8,6 +8,7 @@
     "smoke/src/**/*.ts",
     "src/**/*.ts",
     "core/**/*.ts",
+    "data-source/**/*.ts",
     "editors/**/*.ts",
     "navigation/**/*.ts",
     "overlays/**/*.ts",

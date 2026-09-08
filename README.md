@@ -107,10 +107,11 @@ invisible, and is what the rest of this package covers.
 ## What is covered
 
 Two-way directives exist wherever a widget has genuine user-mutable state —
-`[(dxValue)]` on every editor, selection and grid state on the data widgets,
-`[(dxVisible)]`/`[(dxOpened)]`/`[(dxSelectedIndex)]` on overlays and
-navigation, chart point selection — each typed to the widget's real value
-type. The
+`[(dxValue)]` and `[(dxOpened)]` on the editors, selection, editing state,
+deferred selection and layout state on the data widgets, expansion on the
+trees, `[(dxVisible)]`/`[(dxOpened)]`/`[(dxSelectedIndex)]`/`[(dxSelectedItemKeys)]`
+on overlays and navigation, chart point selection and visual range — each typed
+to the widget's real value type. The
 **[directive catalog](https://github.com/CaffeinatedCoder/ngx-devextreme-zoneless/blob/main/docs/directives.md)**
 is the authoritative table. Components without a dedicated directive
 (PivotGrid, Sortable, Menu, …) are fully covered by the
@@ -129,8 +130,9 @@ complete DevExtreme.AspNet.Data loadOptions wire protocol through your own
 
 ```
 ngx-devextreme-zoneless            → everything (re-exports the below)
-ngx-devextreme-zoneless/core       → engine, types, bases, data-source/remote helpers
-ngx-devextreme-zoneless/editors    → [(dxValue)] directives
+ngx-devextreme-zoneless/core       → engine, types, bases, signal factories
+ngx-devextreme-zoneless/data-source → dxArrayStoreSource, dxReloadOn, dxRemoteStore, dxLoadOptionsParams
+ngx-devextreme-zoneless/editors    → [(dxValue)] and [(dxOpened)] directives
 ngx-devextreme-zoneless/navigation → [(dxSelectedIndex)], [(dxOpened)], …
 ngx-devextreme-zoneless/overlays   → [(dxVisible)] directives
 ngx-devextreme-zoneless/data       → grid/form/scheduler/tree directives
@@ -138,11 +140,20 @@ ngx-devextreme-zoneless/visualization → chart selection, range selector
 ngx-devextreme-zoneless/forms      → [dxFieldState] (Signal Forms; NOT re-exported by the main entry)
 ```
 
-Importing from the main entry is fine: bundlers drop the families you don't
-use at module level (CI proves it — a probe app importing a single editor
-directive is asserted to contain no Gantt, Scheduler, HtmlEditor, chart or
-grid modules). Import from a family entry point when you want the split to be
-explicit.
+No entry point of this package carries widget runtime: every directive holds
+its `devextreme-angular` wrapper class as a type-only import and resolves the
+host through the wrapper's own `NestedOptionHost` provider, so the only widget
+code in your bundle is what you import yourself. That matters under code
+splitting, where bundlers assign files to chunks by reachability rather than by
+use — a directive FESM that imported the grid wrapper would put the grid into
+every lazy route touching that FESM as soon as one route used the grid. CI
+measures both halves: a static scan of the built entry points rejects any
+runtime `devextreme-angular/ui/` import, and a six-chunk probe app asserts that
+a chunk importing TreeView selection next to a grid page, or a text-box
+directive next to an html-editor one, keeps only its own widget in its static
+closure. Importing from the main entry is fine — its `export *` barrel over
+separate FESMs was measured not to re-couple them — and the family entry points
+exist to make the split explicit.
 
 ## Documentation
 
@@ -164,9 +175,10 @@ probe.
 
 Running DevExtreme zoneless is outside the vendor-supported configuration, so
 the claim this package makes is exactly as strong as its suite: a Playwright
-run drives every binding family through a real zoneless app — both directions,
-widget re-creation, slow and failing endpoints against a wire-protocol stub —
-on every push. The compile-time surface has its own contract tests
+run drives every directive in the catalog through a real zoneless app — both
+directions on every widget, widget re-creation, signal-driven `*dxTemplate`
+content, slow and failing endpoints against a wire-protocol stub — on every
+push. The compile-time surface has its own contract tests
 ([examples/type-tests.ts](examples/type-tests.ts)): option names, event names
 and value types are pinned so a vendor rename fails the build instead of
 shipping.

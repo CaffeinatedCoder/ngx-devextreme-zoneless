@@ -1,8 +1,8 @@
-import { Directive, computed, effect, inject, input, type ProviderToken } from '@angular/core';
+import { Directive, computed, effect, inject, input } from '@angular/core';
 import { FORM_FIELD, type Field } from '@angular/forms/signals';
 import {
+    dxInstanceSignal,
     dxStructuralEquals,
-    injectDxInstance,
     type DxHostComponent,
 } from 'ngx-devextreme-zoneless/core';
 
@@ -79,8 +79,8 @@ export abstract class DxFieldStateDirectiveBase<THost extends DxHostComponent, T
      */
     readonly dxFieldStateShowErrors = input<'touched' | 'always'>('touched');
 
-    protected constructor(hostToken: ProviderToken<THost>) {
-        const instance = injectDxInstance(hostToken);
+    protected constructor(host: THost) {
+        const instance = dxInstanceSignal(host);
 
         const formField = inject(FORM_FIELD, { self: true, optional: true });
         if (typeof ngDevMode !== 'undefined' && ngDevMode && formField !== null) {

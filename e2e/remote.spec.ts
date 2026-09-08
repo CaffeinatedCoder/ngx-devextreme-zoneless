@@ -59,6 +59,10 @@ test.describe('remote grid', () => {
     test('loads the first page remotely with total count', async ({ page, request }) => {
         await expect(ordersPagerInfo(page)).toHaveText('Page 1 of 12 (120 items)');
         await expect(page.locator('#grid-remote-orders .dx-data-row')).toHaveCount(10);
+        // The loaded page and the server's count are observable outside the
+        // widget, from the same load — no second request.
+        await expect(readout(page, 'orders-items')).toHaveText('10');
+        await expect(readout(page, 'orders-total')).toHaveText('120');
         const stats = await stubStats(request);
         expect(stats.last['/api/orders']).toMatchObject({
             skip: 0,

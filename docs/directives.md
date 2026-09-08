@@ -31,6 +31,19 @@ Where DevExtreme declares `value?: any` (SelectBox & friends) the directive is
 **generic** instead, so `[(dxValue)]="status"` with a
 `signal<OrderStatus | null>` is checked end-to-end.
 
+## Drop-down open state — `[(dxOpened)]`
+
+| Component | Model |
+|---|---|
+| `dx-select-box`, `dx-lookup`, `dx-date-box`, `dx-date-range-box`, `dx-tag-box`, `dx-drop-down-box`, `dx-autocomplete`, `dx-color-box` | `boolean` |
+| `dx-drop-down-button` (navigation entry point) | `boolean` |
+| `dx-drawer` (navigation entry point) | `boolean` |
+
+The popup's open state on a signal: drive it from outside, and observe every
+way it closes — outside click, escape, an item pick, tab-out. The widget writes
+`opened` through its regular option setter on each user toggle, so this is a
+plain option binding (added in 4.0 for the editors and the drop-down button).
+
 ## Selection & data
 
 | Selector | Model |
@@ -38,6 +51,8 @@ Where DevExtreme declares `value?: any` (SelectBox & friends) the directive is
 | `dx-data-grid[dxSelectedRowKeys]`, `dx-tree-list[dxSelectedRowKeys]` | `readonly TKey[]` |
 | `dx-list[dxSelectedItemKeys]` | `readonly TKey[]` |
 | `dx-tree-view[dxSelectedNodeKeys]` | `readonly TKey[]` (method-based: `getSelectedNodeKeys` / `selectItem`) |
+| `dx-tree-view[dxExpandedNodeKeys]` | `readonly TKey[]` — the expanded nodes (method-based: `getNodes` / `expandItem`, `collapseAll`); the complete set, `[]` collapses all |
+| `dx-data-grid[dxSelectionFilter]` | `DxFilterExpression \| null` — deferred selection (`<dxo-selection mode="multiple" [deferred]="true" />`); **`dx-data-grid` only** |
 | `dx-gantt[dxSelectedRowKey]` | `TKey \| null` |
 | `dx-scheduler[dxCurrentDate]` | `Date \| number \| string` |
 | `dx-scheduler[dxCurrentView]` | DevExtreme's view union |
@@ -53,6 +68,23 @@ Where DevExtreme declares `value?: any` (SelectBox & friends) the directive is
 | `[dxGridState]` | `DxGridState \| null \| undefined` — the full layout state (`state()` / `stateStoring`) |
 | `[dxSearchPanelText]` | `string` — the search panel's phrase (method-based: `searchByText`) |
 | `dx-tree-list[dxExpandedRowKeys]` | `readonly TKey[]` — the expanded rows (**`dx-tree-list` only**) |
+| `[dxEditingChanges]` | `readonly DxDataChange<TRowData, TKey>[]` — the pending edits of batch/cell editing (`editing.changes`); `[]` discards them |
+| `[dxEditRowKey]` | `TKey \| null` — the row in row/form/popup edit mode (`editing.editRowKey`); a key opens the editor, `null` closes it |
+
+`[(dxEditingChanges)]` and `[(dxEditRowKey)]` put the grids' editing state on
+signals — the state DevExtreme designed for external ownership (it is how the
+React and Vue wrappers keep batch edits in application state). A change is
+`{ type: 'insert' | 'update' | 'remove', key, data }`; the grid never shares
+the signal's objects, so a change you hold is never mutated behind your back.
+Both are nested options (`editing.*`), hence method-based, with the family's
+`contentReady` re-read.
+
+`[(dxSelectionFilter)]` is the remote-scale counterpart of
+`[(dxSelectedRowKeys)]`: with deferred selection the grid keeps no key array,
+it keeps a filter expression describing the selected rows — which is what
+makes "select all" over a remote source scale, and what a server can apply
+directly. Pair it with `dxRemoteStore`. `dx-tree-list` declares neither
+`selectionFilter` nor `selection.deferred`, so it is `dx-data-grid` only.
 
 `[(dxExpandedRowKeys)]` is the expansion-state binding for hierarchies — bind
 it to a signal you persist and a restored tree comes back opened the way the
@@ -78,9 +110,11 @@ debounced (`dxGridStateDebounce`, default 100 ms).
 
 | Selector | Model |
 |---|---|
-| `dx-tabs`, `dx-tab-panel`, `dx-accordion`, `dx-gallery` + `[dxSelectedIndex]` | `number` |
-| `dx-drawer[dxOpened]` | `boolean` |
-| `dx-popup`, `dx-popover`, `dx-tooltip`, `dx-toast`, `dx-load-panel`, `dx-action-sheet` + `[dxVisible]` | `boolean` |
+| `dx-tabs`, `dx-tab-panel`, `dx-accordion`, `dx-gallery`, `dx-multi-view`, `dx-stepper` + `[dxSelectedIndex]` | `number` |
+| `dx-tabs`, `dx-accordion`, `dx-button-group` + `[dxSelectedItemKeys]` | `readonly TKey[]` (multi-select: `selectionMode="multiple"` / `[multiple]="true"`) |
+| `dx-pagination[dxPageIndex]`, `dx-pagination[dxPageSize]` | `number` — the standalone pager; its `pageIndex` is **1-based**, unlike the grids' |
+| `dx-drawer[dxOpened]`, `dx-drop-down-button[dxOpened]` | `boolean` |
+| `dx-popup`, `dx-popover`, `dx-tooltip`, `dx-toast`, `dx-load-panel`, `dx-action-sheet`, `dx-context-menu` + `[dxVisible]` | `boolean` |
 
 `[(dxVisible)]` tracks *every* way an overlay can close (shading click, escape,
 close button, API) — the classic zoneless pain point.
@@ -89,7 +123,8 @@ close button, API) — the classic zoneless pain point.
 
 | Selector | Model |
 |---|---|
-| `dx-chart[dxSelectedPoints]`, `dx-pie-chart[dxSelectedPoints]` | `readonly DxChartSelectedPoint[]` |
+| `dx-chart[dxSelectedPoints]`, `dx-pie-chart[dxSelectedPoints]`, `dx-polar-chart[dxSelectedPoints]` | `readonly DxChartSelectedPoint[]` |
+| `dx-chart[dxVisualRange]` | `DxChartVisualRange \| undefined` — the argument axis' visual range, what zoom and pan change |
 
 Chart selection is method-based; selected points are exposed as serializable
 `{ seriesName, argument, value }` descriptors that can be stored and restored.
@@ -97,6 +132,16 @@ DevExtreme charts do not select points on click by themselves (their demos
 wire `onPointClick: e => e.target.select()` manually), so these directives
 toggle the clicked point's selection by default — opt out with
 `[dxPointClickToggle]="false"` if you want to handle `onPointClick` yourself.
+
+`[(dxVisualRange)]` binds `argumentAxis.visualRange`, so several charts can
+share one window or a zoom can be persisted and restored. Enable zooming with
+`<dxo-zoom-and-pan argumentAxis="both" [allowMouseWheel]="true" />`. The chart
+normalizes what it is handed — a `[start, end]` pair is read back as
+`{ startValue, endValue }` — and the adapter re-reads after each write, so the
+signal converges to the chart's representation. Once rendered, the chart
+reports the full data range the same way, so the signal is `undefined` only
+before the first render (and `undefined` means "do not push"). Widget → signal
+reads can be debounced via `dxVisualRangeDebounce`.
 
 ## Components without a dedicated directive
 

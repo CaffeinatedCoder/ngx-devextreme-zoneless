@@ -26,6 +26,8 @@ import type {
     DxInstanceOf,
     DxNumberRange,
     DxValueDirectiveBase,
+    DxChartVisualRange,
+    DxDataChange,
 } from 'ngx-devextreme-zoneless';
 import type DataSource from 'devextreme/data/data_source';
 import {
@@ -37,7 +39,9 @@ import {
     dxOptionSignal,
     dxReloadOn,
     dxRemoteStore,
+    injectDxHost,
     onDxWidgetReady,
+    DxOpenedDirectiveBase,
 } from 'ngx-devextreme-zoneless';
 import type { LoadOptions } from 'devextreme/common/data';
 import type { Field, FieldTree } from '@angular/forms/signals';
@@ -258,6 +262,36 @@ inInjectionContext(() => {
 /* ------------------------------------------------------------------------ *
  * Signal Forms seam (`ngx-devextreme-zoneless/forms`)
  * ------------------------------------------------------------------------ */
+
+/* 4.0 bindings. `[(dxOpened)]` is a plain option binding, so the option name
+ * is what the type system checks: a widget without `opened` cannot get the
+ * directive. Editing state and the chart's visual range are the vendor's own
+ * declared shapes, re-exported so a consumer's signal is typed end-to-end. */
+class TextBoxOpenedProbe extends DxOpenedDirectiveBase<DxTextBoxComponent> {
+    constructor() {
+        // @ts-expect-error — a text box declares no `opened` option
+        super(textBox, 'opened');
+    }
+}
+declare const change: DxDataChange<{ id: number; customer: string }, number>;
+expectType<'insert' | 'update' | 'remove'>(change.type);
+expectType<number>(change.key);
+expectType<string | undefined>(change.data.customer);
+const rangeAsObject: DxChartVisualRange = { startValue: 3, endValue: 6 };
+const rangeAsPair: DxChartVisualRange = [3, 6];
+// `selectionFilter` is a top-level grid option, so `[(dxSelectionFilter)]` is
+// type-checked by name; a filter expression is what it takes.
+const selectionFilter: DxHostOptionValue<Grid, 'selectionFilter'> = ['id', '=', 1];
+
+/* `injectDxHost` hands the current element's host back as whatever host type
+ * the caller names — the directive's selector is the guarantee, not the type
+ * system — and rejects a type that is not a devextreme-angular host at all. It
+ * exists so the shipped directives can keep their wrapper classes as type-only
+ * imports; the value import is what `npm run probe` forbids. */
+const hostByType: DxTextBoxComponent = injectDxHost<DxTextBoxComponent>();
+const hostWidget: DxInstanceOf<DxTextBoxComponent> = hostByType.instance;
+// @ts-expect-error — `string` is not a host component
+injectDxHost<string>();
 
 /* `DxFieldStateDirectiveBase` reaches these five options through a type
  * parameter, so the write site casts and nothing checks the names there. A

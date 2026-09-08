@@ -1,5 +1,184 @@
 # Changelog
 
+## 4.0.0 (unreleased)
+
+### Breaking changes
+
+- **The data-loading helpers moved out of `core` into
+  `ngx-devextreme-zoneless/data-source`.** `dxArrayStoreSource`, `dxReloadOn`,
+  `dxRemoteStore`, `dxLoadOptionsParams` and their types
+  (`DxArrayStoreSourceOptions`, `DxReloadTarget`, `DxRemoteLoader`,
+  `DxRemoteStore`, `DxRemoteStoreOptions`) are exported from the new entry
+  point and, as before, from the main entry. An import of those names from
+  `ngx-devextreme-zoneless/core` must change to `ngx-devextreme-zoneless/data-source`
+  or to the main entry; nothing else about them changed. Why: they construct
+  `DataSource` and `CustomStore`, so they carry a runtime import of
+  DevExtreme's data layer, and `devextreme` declares no `sideEffects: false`,
+  so that import cannot be shaken. Kept in `core` it cost every chunk that used
+  any directive at all — measured on a text-box-only chunk: 44,984 B over the
+  bare wrapper, of which 39,862 B was `devextreme/esm/__internal/data`. A
+  chunk with a select box or a grid already carries the data layer and gains
+  nothing; a sign-in page or a settings form gains roughly 10 KB brotli on
+  first load. `npm run probe` now asserts that only the `data-source` entry
+  point imports `devextreme/`, and that a text-box chunk's closure carries no
+  data-layer module.
+- **`DxFieldStateDirectiveBase` takes the host instance, not its class token.**
+  A subclass now calls `super(injectDxHost<DxTextBoxComponent>())` — or passes
+  any host it injected itself — instead of `super(DxTextBoxComponent)`, which
+  is the same shape as every core base. Only subclasses of the base are
+  affected; the shipped `[dxFieldState]` directives are unchanged.
+
+### Fixed
+
+- **A directive no longer drags sibling widgets into a lazy route's closure.**
+  Every family entry point imported the wrapper class of each widget it adapts
+  — `import { DxDataGridComponent } from 'devextreme-angular/ui/data-grid'` —
+  as the injection token for its host. That is a module-level edge from the
+  family's FESM to the widget, and esbuild assigns files to chunks by
+  *reachability*, not by use: a widget that is live for one lazy route is
+  reachable from every other route sharing the FESM, whether or not that
+  route's directive touches it. Measured in a consumer (3.0.0, devextreme-
+  angular 26.1.4): a shell layout importing only
+  `DxTreeViewSelectedNodeKeysDirective` from `/data`, next to a lazy page
+  using `dx-data-grid`, carried the whole grid runtime in its static closure —
+  1,705,093 B raw / 325,755 B brotli on every first load, more than its own
+  eager bundle. The same shape exists in every family: a text-box page next to
+  an html-editor page, both via `/editors`, put Quill into the text-box chunk.
+
+  Wrapper classes are now **type-only imports**, and the host is resolved
+  through `NestedOptionHost` — the public `devextreme-angular/core` token that
+  every generated wrapper provides at its own element and points at itself
+  (`optionHost.setHost(this)` in the constructor; verified against 26.1.4 for
+  all forty adapted widgets, and nested `dxo-*`/`dxi-*` components get their
+  own instance). No built entry point imports `devextreme-angular/ui/<widget>`
+  at runtime any more; the only widget code in a bundle is what the consumer
+  imports. Behaviour is unchanged — `npm run e2e` drives every directive
+  through the new injection. In the probe, the static closure of a lazy chunk
+  importing TreeView selection from `/data` while another chunk uses the grid
+  went from 2,836,967 B to 261,895 B (minified, uncompressed).
+
+  Two findings worth keeping. It was never "importing `/data` costs grid +
+  gantt + scheduler": only widgets live *elsewhere in the same app* were
+  dragged in, which is also why the single-chunk tree-shaking probe never saw
+  it — with one entry nothing makes a sibling live. And an `export *` barrel
+  over separate FESMs does **not** re-couple them (measured with named imports
+  through the main entry), so the main entry point is not the trap; a shared
+  FESM with a value import is.
+
+### Added
+
+- **25 new bindings, every one with a smoke row and both-direction e2e.**
+  - **`[(dxOpened)]`** for the drop-down editors — select box, lookup, date
+    box, date range box, tag box, drop-down box, autocomplete, color box — and
+    for `dx-drop-down-button`: the popup's open state on a signal, with every
+    way it closes observed. The widget writes `opened` through its regular
+    option setter on each user toggle (verified against 26.1.4), so it is a
+    plain option binding. `DxOpenedDirectiveBase` joins the core bases and the
+    drawer's directive now extends it; `DX_OPENED_DIRECTIVES` is the bulk
+    import.
+  - **`[(dxExpandedNodeKeys)]`** for `dx-tree-view`: the expanded nodes as a
+    complete key set, method-based over `getNodes()` / `expandItem` /
+    `collapseAll`, with the post-write re-read `expandItem`'s silent no-op on an
+    unknown key demands. The downstream consumer's own decision record had
+    noted the package "carries no expansion directive at all".
+  - **`[(dxEditingChanges)]` and `[(dxEditRowKey)]`** for `dx-data-grid` and
+    `dx-tree-list`: the editing state DevExtreme designed for external
+    ownership (`editing.changes`, `editing.editRowKey`) as signals — pending
+    batch edits you can persist, restore or discard with `[]`, and the row in
+    edit mode you can open or close by key. Cloned both ways: the editing
+    controller mutates the entries' `data` objects as the user types, and
+    sharing them would have been the `[(dxFormData)]` defect one level down.
+    `DxDataChange<TRowData, TKey>` is exported for the model type.
+  - **`[(dxSelectionFilter)]`** for `dx-data-grid`: deferred selection as a
+    signal — the remote-scale counterpart of `[(dxSelectedRowKeys)]`, and the
+    half of the remote story that was missing. `dx-data-grid` only; TreeList
+    declares neither `selectionFilter` nor `selection.deferred`.
+  - **`[(dxVisualRange)]`** for `dx-chart`: the argument axis' visual range,
+    what zoom and pan change, so charts can share a window or a zoom can be
+    restored. The chart writes it back through the regular setter on every
+    zoom (verified: `_notifyVisualRange` → `option('argumentAxis.visualRange', …)`),
+    and normalizes what it is handed, so the adapter re-reads after each write.
+    `DxChartVisualRange` is exported.
+  - **Selection breadth**: `[(dxSelectedItemKeys)]` for `dx-tabs`,
+    `dx-accordion` and `dx-button-group`; `[(dxSelectedIndex)]`
+    for `dx-multi-view` and `dx-stepper`; `[(dxPageIndex)]` / `[(dxPageSize)]`
+    for the standalone `dx-pagination` pager (its index is 1-based, unlike the
+    grids'); `[(dxVisible)]` for `dx-context-menu`; `[(dxSelectedPoints)]` for
+    `dx-polar-chart`.
+- **`items()` and `totalCount()` on the `dxRemoteStore` handle.** The loaded
+  page and the server's count were observable only inside the widget; a
+  header count or an empty-state message needed a second request or a hand
+  subscription to the DataSource. Both are now signals fed by the
+  DataSource's `changed` event, so they describe exactly what the widget
+  renders. `totalCount` is `undefined` when the server sent none.
+- **`injectDxHost<THost>()`** in `core`: the devextreme-angular component
+  hosting the current element, without naming its class — so the wrapper can
+  stay a type-only import. The caller names the type; the directive's selector
+  is what makes it true. This is what every shipped directive now uses.
+
+### Tests
+
+- **Every directive is now driven through the zoneless app, not merely every
+  family.** The binding screen placed 14 widget tags, which left 26 of the 40
+  adapted widgets — and 17 of the 18 `[dxFieldState]` editors — with no
+  runtime coverage; both 3.0 defects lived in exactly such directives. Two new
+  screens close that: `/coverage` places every `[(dxValue)]`, `[(dxSelectedIndex)]`,
+  `[(dxSelectedItemKeys)]`, `[(dxOpened)]`, `[(dxVisible)]`, `[(dxSelectedRowKey)]`,
+  `[(dxCurrentDate)]`/`[(dxCurrentView)]` and `[(dxSelectedPoints)]` directive the
+  binding screen does not, with both directions asserted per widget
+  (`e2e/coverage.spec.ts`), and `/forms-coverage` presents an always-invalid,
+  switchable-to-read-only field through `[dxFieldState]` on all 18 editors
+  (`e2e/forms-coverage.spec.ts`). Where a gesture would test DevExtreme's own
+  pointer handling rather than the binding — the filter builder's inline
+  editors, the range selector's SVG sliders, the date range box's masked
+  inputs — the widget → signal direction is driven by writing the widget's
+  option through its instance, the same setter the gesture ends in. The suite
+  grew from 104 to 207 cases and runs in about 75 seconds.
+- **A signal read inside a widget-rendered `*dxTemplate` is pinned** to
+  re-render on the signal change with no zone (a list item template on
+  `/coverage`). Consumers' cell and item templates rely on exactly this and
+  nothing had measured it.
+- **`npm run probe` now guards isolation under code splitting**, which the
+  single-directive probe could not. A static scan fails on any
+  `devextreme-angular/ui/` import in `dist/fesm2022/*.mjs` — red the instant an
+  `import type` regresses to a value import, a second scan fails on any
+  `devextreme/` import outside the `data-source` entry point — and the probe app
+  builds seven lazy chunks (text box via the main entry, html editor, TreeView
+  selection, a grid page, `[dxFieldState]` on a text box and on the html editor,
+  and `dxRemoteStore` alone), asserting
+  each chunk's static closure holds only its own widget while the heavy
+  siblings are live in another chunk. The old single-directive assertion
+  survives as the sanity check that the probe is meaningful. Proven by
+  breaking: restoring one value import in `data` turns both halves red in one
+  run — the scan names the FESM line, and the TreeView chunk's closure grows
+  from 1,081,606 B to 2,887,294 B with the grid inside it.
+
+### Docs
+
+- README "Entry points & tree-shaking" now states the guarantee that is
+  measured — no entry point carries widget runtime — instead of a tree-shaking
+  claim that held only for single-chunk apps. `docs/composition-api.md` shows
+  `injectDxHost`.
+- `docs/directives.md` carries every new binding with its model type and the
+  semantics worth stating (deferred selection, editing state, the chart's
+  full-range initial value, the pager's 1-based index); `docs/remote-data.md`
+  the loaded-data signals and the entry-point move; `docs/development.md` the
+  six smoke screens.
+
+### Not in this release, by decision
+
+- `dx-tab-panel[dxSelectedItemKeys]` was built, failed its signal → widget case
+  (a key write did not move the tab), and was withdrawn rather than shipped
+  unproven: a tab panel's selection is single by construction and
+  `[(dxSelectedIndex)]` already owns it.
+- CardView, FileManager, FileUploader, Splitter, Resizable, Chat, the scheduler's
+  `selectedCellData` and the calendar's `zoomLevel` have bindable state
+  (verified against 26.1.4) and no directive yet; they are recorded as
+  demand-driven backlog. Map centre/zoom, Diagram and ScrollView are not
+  bindable — silent setters or methods only.
+- No `ng update` migration: the breaking change moves four symbols' import path,
+  a one-line edit, and the main entry keeps exporting them unchanged.
+
 ## 3.0.0 (2026-08-24)
 
 ### Breaking changes
