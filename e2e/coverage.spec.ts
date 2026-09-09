@@ -27,6 +27,17 @@ const setOption = (page: Page, selector: string, name: string, value: unknown): 
         [selector, name, value] as const,
     );
 
+/** Reads a widget option through the wrapper's instance. */
+const getOption = (page: Page, selector: string, name: string): Promise<unknown> =>
+    page.evaluate(
+        ([selector, name]) => {
+            const host = document.querySelector(selector);
+            const component = (window as unknown as { ng: { getComponent(el: Element | null): { instance: { option(name: string): unknown } } } }).ng.getComponent(host);
+            return component.instance.option(name);
+        },
+        [selector, name] as const,
+    );
+
 test.beforeEach(async ({ page }) => {
     await page.goto('/coverage');
     await expect(page.locator('#cov-textarea textarea.dx-texteditor-input')).toBeVisible();
@@ -384,6 +395,170 @@ test.describe('range selector [(dxValue)]', () => {
                 ),
             )
             .toEqual([10, 50]);
+    });
+});
+
+// ---- editors the binding screen never placed --------------------------------
+
+test.describe('number box [(dxValue)]', () => {
+    const input = (page: Page): Locator => page.locator('#cov-number input.dx-texteditor-input');
+    test('widget → signal', async ({ page }) => {
+        await input(page).pressSequentially('7');
+        await expect(readout(page, 'cov-number-readout')).toHaveText('7');
+    });
+    test('signal → widget, and null clears', async ({ page }) => {
+        await readout(page, 'cov-number-set').click();
+        await expect(input(page)).toHaveValue('42');
+        // `null` is the spelling that clears — `undefined` means "do not push".
+        await readout(page, 'cov-number-clear').click();
+        await expect(input(page)).toHaveValue('');
+    });
+});
+
+test.describe('date box [(dxValue)]', () => {
+    test('widget → signal: the widget writing its value', async ({ page }) => {
+        await setOption(page, '#cov-datebox', 'value', new Date(2026, 0, 12));
+        await expect(readout(page, 'cov-datebox-readout')).toHaveText('2026-01-12');
+    });
+    test('signal → widget', async ({ page }) => {
+        await readout(page, 'cov-datebox-set').click();
+        await expect(page.locator('#cov-datebox input.dx-texteditor-input')).not.toHaveValue('');
+        await expect(readout(page, 'cov-datebox-readout')).toHaveText('2026-01-20');
+    });
+});
+
+test.describe('tag box [(dxValue)]', () => {
+    test('widget → signal', async ({ page }) => {
+        await page.locator('#cov-tagbox').click();
+        // Scoped to the tag box's own overlay: `ddItems` is shared with
+        // #cov-list, and a selected chip renders the same text again.
+        await page
+            .locator('.dx-dropdowneditor-overlay .dx-list-item', { hasText: 'Two' })
+            .click();
+        await expect(readout(page, 'cov-tagbox-readout')).toHaveText(/\[\s*2\s*\]/);
+    });
+    test('signal → widget', async ({ page }) => {
+        await readout(page, 'cov-tagbox-set').click();
+        await expect(page.locator('#cov-tagbox .dx-tag')).toHaveCount(2);
+        await expect(page.locator('#cov-tagbox .dx-tag-content').first()).toContainText('One');
+    });
+});
+
+// ---- the grid-state family's TreeList twins ----------------------------------
+//
+// Every binding below is declared for dx-data-grid and dx-tree-list from one
+// shared base, and only the DataGrid half was driven before 4.0. A base change
+// that breaks one subclass and not the other has to fail somewhere.
+
+const treeList = (page: Page): Locator => page.locator('#tw-tl');
+const treeRows = (page: Page): Locator => page.locator('#tw-tl .dx-data-row');
+
+test.describe('tree list [(dxSelectedRowKeys)]', () => {
+    test('widget → signal', async ({ page }) => {
+        await treeRows(page).first().locator('.dx-select-checkbox').click();
+        await expect(readout(page, 'tw-tl-selected')).toHaveText(/\[\s*1\s*\]/);
+    });
+    test('signal → widget', async ({ page }) => {
+        await readout(page, 'tw-tl-set-selected').click();
+        await expect(treeList(page).locator('.dx-select-checkbox.dx-checkbox-checked')).toHaveCount(1);
+    });
+});
+
+test.describe('tree list [(dxFocusedRowKey)]', () => {
+    test('widget → signal', async ({ page }) => {
+        // The second column: the TreeList renders the select checkbox inside
+        // the first cell, so clicking that would toggle selection instead.
+        await treeRows(page).first().locator('td').nth(1).click();
+        await expect(readout(page, 'tw-tl-focused')).toHaveText('1');
+    });
+    test('signal → widget', async ({ page }) => {
+        await readout(page, 'tw-tl-set-focused').click();
+        await expect(treeList(page).locator('.dx-data-row.dx-row-focused')).toContainText('Gamma');
+    });
+});
+
+test.describe('tree list [(dxPageIndex)] and [(dxPageSize)]', () => {
+    test('widget → signal: the pager moves both', async ({ page }) => {
+        await treeList(page).locator('.dx-page', { hasText: '2' }).click();
+        await expect(readout(page, 'tw-tl-page')).toHaveText('1');
+        await setOption(page, '#tw-tl', 'paging.pageSize', 4);
+        await expect(readout(page, 'tw-tl-size')).toHaveText('4');
+    });
+    // Asserted on the widget's own option rather than on rendered rows: a
+    // TreeList pages its node list, not its DataSource, and keeps rendering
+    // every ancestor — measured, `pageIndex` moves while the row count does
+    // not. The option is what these adapters bind.
+    test('signal → widget', async ({ page }) => {
+        await readout(page, 'tw-tl-set-page').click();
+        await expect.poll(() => getOption(page, '#tw-tl', 'paging.pageIndex')).toBe(1);
+        await readout(page, 'tw-tl-set-size').click();
+        await expect.poll(() => getOption(page, '#tw-tl', 'paging.pageSize')).toBe(4);
+    });
+});
+
+test.describe('tree list [(dxSearchPanelText)]', () => {
+    const search = (page: Page): Locator =>
+        page.locator('#tw-tl .dx-treelist-search-panel input');
+    test('widget → signal', async ({ page }) => {
+        await search(page).pressSequentially('Gam');
+        await expect(readout(page, 'tw-tl-search')).toHaveText('Gam');
+    });
+    test('signal → widget', async ({ page }) => {
+        await readout(page, 'tw-tl-set-search').click();
+        await expect(search(page)).toHaveValue('Delta');
+        await expect(treeRows(page)).toHaveCount(1);
+    });
+});
+
+test.describe('tree list [(dxFilterValue)]', () => {
+    test('widget → signal: the widget writing its filter', async ({ page }) => {
+        await setOption(page, '#tw-tl', 'filterValue', ['name', '=', 'Delta']);
+        await expect(readout(page, 'tw-tl-filter')).toContainText('Delta');
+    });
+    test('signal → widget', async ({ page }) => {
+        await readout(page, 'tw-tl-set-filter').click();
+        await expect(treeRows(page)).toHaveCount(1);
+        await expect(treeRows(page).first()).toContainText('Gamma');
+    });
+});
+
+test.describe('tree list [(dxGridState)]', () => {
+    const stateList = (page: Page): Locator => page.locator('#tw-tl-state');
+    // Expansion is the TreeList's own contribution to the shared grid state,
+    // so it is what distinguishes this twin from the DataGrid's.
+    test('widget → signal: expanding a node lands in the state', async ({ page }) => {
+        await expect(readout(page, 'tw-tl-state-expanded')).toHaveText('[]');
+        await setOption(page, '#tw-tl-state', 'expandedRowKeys', [1]);
+        await expect(readout(page, 'tw-tl-state-expanded')).toHaveText(/\[\s*1\s*\]/);
+    });
+    test('signal → widget: a restored state expands the node', async ({ page }) => {
+        // The layout has to have been read before it can be restored — a
+        // widget's state is `{}` until it has rendered once.
+        await expect(readout(page, 'tw-tl-state-expanded')).toHaveText('[]');
+        const collapsed = await stateList(page).locator('.dx-data-row').count();
+        await readout(page, 'tw-tl-state-restore').click();
+        // Beta is Alpha's only child: expanding Alpha adds exactly one row.
+        await expect(stateList(page).locator('.dx-data-row')).toHaveCount(collapsed + 1);
+        await expect(stateList(page).locator('.dx-data-row')).toContainText([/Alpha/, /Beta/]);
+    });
+});
+
+test.describe('data grid [(dxFilterValue)] and [(dxPageSize)]', () => {
+    const grid = (page: Page): Locator => page.locator('#tw-grid');
+    test('widget → signal', async ({ page }) => {
+        await setOption(page, '#tw-grid', 'filterValue', ['customer', '=', 'Acme']);
+        await expect(readout(page, 'tw-grid-filter')).toContainText('Acme');
+        await setOption(page, '#tw-grid', 'paging.pageSize', 1);
+        await expect(readout(page, 'tw-grid-size')).toHaveText('1');
+    });
+    test('signal → widget', async ({ page }) => {
+        await readout(page, 'tw-grid-set-filter').click();
+        await expect(grid(page).locator('.dx-data-row')).toHaveCount(1);
+        await expect(grid(page).locator('.dx-data-row').first()).toContainText('Globex');
+        await readout(page, 'tw-grid-clear-filter').click();
+        await expect(grid(page).locator('.dx-data-row')).toHaveCount(2);
+        await readout(page, 'tw-grid-set-size').click();
+        await expect(grid(page).locator('.dx-data-row')).toHaveCount(1);
     });
 });
 

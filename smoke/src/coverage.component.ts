@@ -26,6 +26,7 @@ import { DxListModule } from 'devextreme-angular/ui/list';
 import { DxLoadPanelModule } from 'devextreme-angular/ui/load-panel';
 import { DxLookupModule } from 'devextreme-angular/ui/lookup';
 import { DxMultiViewModule } from 'devextreme-angular/ui/multi-view';
+import { DxNumberBoxModule } from 'devextreme-angular/ui/number-box';
 import { DxPaginationModule } from 'devextreme-angular/ui/pagination';
 import { DxPieChartModule } from 'devextreme-angular/ui/pie-chart';
 import { DxPolarChartModule } from 'devextreme-angular/ui/polar-chart';
@@ -117,6 +118,7 @@ function showDate(value: DxDateValue | readonly DxDateValue[] | null | undefined
         DxLoadPanelModule,
         DxLookupModule,
         DxMultiViewModule,
+        DxNumberBoxModule,
         DxPaginationModule,
         DxPieChartModule,
         DxPolarChartModule,
@@ -221,6 +223,22 @@ function showDate(value: DxDateValue | readonly DxDateValue[] | null | undefined
             <dx-filter-builder id="cov-filter" [(dxValue)]="filter" [fields]="filterFields" />
             <span class="readout" data-testid="cov-filter-readout">{{ filter() | json }}</span>
             <button data-testid="cov-filter-set" (click)="filter.set(['amount', '>', 42])">set amount &gt; 42</button>
+        </div>
+        <div class="row">
+            <dx-number-box id="cov-number" [(dxValue)]="numberValue" valueChangeEvent="input" [showSpinButtons]="true" />
+            <span class="readout" data-testid="cov-number-readout">{{ numberValue() ?? 'null' }}</span>
+            <button data-testid="cov-number-set" (click)="numberValue.set(42)">set 42</button>
+            <button data-testid="cov-number-clear" (click)="numberValue.set(null)">clear</button>
+        </div>
+        <div class="row">
+            <dx-date-box id="cov-datebox" [(dxValue)]="dateValue" [min]="january(1)" [max]="january(31)" />
+            <span class="readout" data-testid="cov-datebox-readout">{{ showDate(dateValue()) }}</span>
+            <button data-testid="cov-datebox-set" (click)="dateValue.set(january(20))">set Jan 20</button>
+        </div>
+        <div class="row">
+            <dx-tag-box id="cov-tagbox" [(dxValue)]="tagValue" [items]="ddItems" valueExpr="id" displayExpr="name" style="width:240px" />
+            <span class="readout" data-testid="cov-tagbox-readout">{{ tagValue() | json }}</span>
+            <button data-testid="cov-tagbox-set" (click)="tagValue.set([1, 3])">set One &amp; Three</button>
         </div>
 
         <h3>Navigation</h3>
@@ -532,6 +550,97 @@ function showDate(value: DxDateValue | readonly DxDateValue[] | null | undefined
             <dxi-column dataField="name" />
         </dx-tree-list>
 
+        <!--
+            The twins the binding screen omits: the whole grid-state family is
+            declared for dx-data-grid *and* dx-tree-list from shared bases, and
+            only the DataGrid half was ever driven. A base change that breaks
+            one subclass and not its twin has to show up somewhere.
+        -->
+        <h3>Grid state — the TreeList twins</h3>
+        <div class="row">
+            <span class="readout" data-testid="tw-tl-selected">{{ twSelected() | json }}</span>
+            <span class="readout" data-testid="tw-tl-focused">{{ twFocused() ?? 'null' }}</span>
+            <span class="readout" data-testid="tw-tl-page">{{ twPage() }}</span>
+            <span class="readout" data-testid="tw-tl-size">{{ twPageSize() }}</span>
+            <span class="readout" data-testid="tw-tl-search">{{ twSearch() }}</span>
+            <span class="readout" data-testid="tw-tl-filter">{{ twFilter() | json }}</span>
+        </div>
+        <div class="row">
+            <button data-testid="tw-tl-set-selected" (click)="twSelected.set([3])">select Gamma</button>
+            <button data-testid="tw-tl-set-focused" (click)="twFocused.set(3)">focus Gamma</button>
+            <button data-testid="tw-tl-set-page" (click)="twPage.set(1)">page 2</button>
+            <button data-testid="tw-tl-set-size" (click)="twPageSize.set(4)">size 4</button>
+            <button data-testid="tw-tl-set-search" (click)="twSearch.set('Delta')">search Delta</button>
+            <button data-testid="tw-tl-set-filter" (click)="twFilter.set(['name', '=', 'Gamma'])">filter Gamma</button>
+        </div>
+        <dx-tree-list
+            id="tw-tl"
+            [(dxSelectedRowKeys)]="twSelected"
+            [(dxFocusedRowKey)]="twFocused"
+            [(dxPageIndex)]="twPage"
+            [(dxPageSize)]="twPageSize"
+            [(dxSearchPanelText)]="twSearch"
+            [(dxFilterValue)]="twFilter"
+            [dataSource]="twRows"
+            keyExpr="id"
+            parentIdExpr="parentId"
+            [selection]="twSelection"
+            [paging]="twPaging"
+            [pager]="twPager"
+            [searchPanel]="twSearchPanel"
+            [filterRow]="twFilterRow"
+            [focusedRowEnabled]="true"
+            [showBorders]="true"
+            style="max-width:480px">
+            <dxi-column dataField="id" [width]="70" />
+            <dxi-column dataField="name" />
+        </dx-tree-list>
+
+        <!--
+            state() restores the whole layout. Expansion is what the TreeList
+            adds to the shared grid state (its state-storing module writes
+            expandedRowKeys on the way out and applies it on the way back in),
+            so that is the half worth proving on the twin.
+        -->
+        <div class="row">
+            <span class="readout" data-testid="tw-tl-state-expanded">{{ twStateExpanded() }}</span>
+            <button data-testid="tw-tl-state-restore" (click)="restoreTwState()">restore expanded</button>
+        </div>
+        <dx-tree-list
+            id="tw-tl-state"
+            [(dxGridState)]="twState"
+            [dxGridStateDebounce]="50"
+            [dataSource]="twRows"
+            keyExpr="id"
+            parentIdExpr="parentId"
+            [showBorders]="true"
+            style="max-width:480px">
+            <dxi-column dataField="name" />
+        </dx-tree-list>
+
+        <!-- The two DataGrid bindings only the card view carried. -->
+        <div class="row">
+            <span class="readout" data-testid="tw-grid-filter">{{ twGridFilter() | json }}</span>
+            <span class="readout" data-testid="tw-grid-size">{{ twGridPageSize() }}</span>
+            <button data-testid="tw-grid-set-filter" (click)="twGridFilter.set(['customer', '=', 'Globex'])">filter Globex</button>
+            <button data-testid="tw-grid-clear-filter" (click)="twGridFilter.set(null)">clear filter</button>
+            <button data-testid="tw-grid-set-size" (click)="twGridPageSize.set(1)">size 1</button>
+        </div>
+        <dx-data-grid
+            id="tw-grid"
+            [(dxFilterValue)]="twGridFilter"
+            [(dxPageSize)]="twGridPageSize"
+            [dataSource]="rows"
+            keyExpr="id"
+            [paging]="twPaging"
+            [pager]="twPager"
+            [filterRow]="twFilterRow"
+            [showBorders]="true"
+            style="max-width:480px">
+            <dxi-column dataField="id" [width]="70" />
+            <dxi-column dataField="customer" />
+        </dx-data-grid>
+
         <h3>Card view</h3>
         <div class="row">
             <span class="readout" data-testid="nb-cardview-keys">{{ cardKeys() | json }}</span>
@@ -770,6 +879,58 @@ export class CoverageComponent {
     // 4.0 demand-driven bindings — focused row by index, card view, file manager
     readonly gridFocusedIndex = signal(-1);
     readonly treeFocusedIndex = signal(-1);
+    // Editors the binding screen never placed with `[(dxValue)]`.
+    readonly numberValue = signal<number | null>(null);
+    readonly dateValue = signal<DxDateValue | null>(null);
+    readonly tagValue = signal<readonly number[]>([]);
+
+    // The grid-state family's TreeList twins, plus the two DataGrid bindings
+    // that only the card view carried. Each base is shared between the grids,
+    // so driving one half proves nothing about the other.
+    readonly twRows = [
+        { id: 1, parentId: 0, name: 'Alpha' },
+        { id: 2, parentId: 1, name: 'Beta' },
+        { id: 3, parentId: 0, name: 'Gamma' },
+        { id: 4, parentId: 0, name: 'Delta' },
+        { id: 5, parentId: 0, name: 'Epsilon' },
+        { id: 6, parentId: 0, name: 'Zeta' },
+    ];
+    readonly twSelected = signal<readonly number[]>([]);
+    readonly twFocused = signal<number | null>(null);
+    readonly twPage = signal(0);
+    readonly twPageSize = signal(2);
+    readonly twSearch = signal('');
+    readonly twFilter = signal<DxFilterExpression | null>(null);
+    readonly twState = signal<Record<string, unknown> | null | undefined>(undefined);
+    /** Just the expansion out of the layout — the whole state as JSON is unreadable in a readout. */
+    readonly twStateExpanded = computed(() => {
+        const state = this.twState();
+        if (state === undefined || state === null) {
+            return 'none';
+        }
+        return JSON.stringify(state['expandedRowKeys'] ?? []);
+    });
+    readonly twGridFilter = signal<DxFilterExpression | null>(null);
+    readonly twGridPageSize = signal(2);
+    /** Stable references: a template literal would be a new object per check and re-push the option. */
+    readonly twSelection = { mode: 'multiple' as const };
+    /**
+     * `enabled` is explicit on purpose: unlike the DataGrid, the TreeList does
+     * not page just because a `pageSize` is present, and a visible pager over
+     * unpaged data looks like a working one until you click it.
+     */
+    readonly twPaging = { enabled: true, pageSize: 2 };
+    readonly twPager = { visible: true, showPageSizeSelector: true, allowedPageSizes: [1, 2, 4] };
+    readonly twSearchPanel = { visible: true };
+    readonly twFilterRow = { visible: true };
+
+    restoreTwState(): void {
+        const current = this.twState();
+        if (current !== undefined && current !== null) {
+            this.twState.set({ ...current, expandedRowKeys: [1] });
+        }
+    }
+
     readonly cardKeys = signal<readonly number[]>([]);
     readonly cardPage = signal(0);
     readonly cardPageSize = signal(2);
