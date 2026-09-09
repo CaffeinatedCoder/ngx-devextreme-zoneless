@@ -302,8 +302,17 @@ export function dxRemoteStore<TItem, TKey = unknown>(
     // state already updated, so `items()` is exactly what the widget renders
     // and `totalCount()` is what its pager shows (`-1` when the server sent
     // none). Disposed with the DataSource on injector destruction.
+    //
+    // The copy is load-bearing, not defensive. A load replaces the
+    // DataSource's array, but a *pushed update* (`store().push([{ type:
+    // 'update', … }])` — how a websocket message reaches a bound grid)
+    // mutates the array the DataSource already handed out, in place, and then
+    // fires `changed`. Setting the signal to that same reference is a no-op
+    // under `Object.is`: the widget re-renders the change and `items()`
+    // silently never emits it. A fresh array per publish is what makes the
+    // signal observable on that path.
     const publishLoaded = (): void => {
-        items.set(dataSource.items() as readonly TItem[]);
+        items.set([...dataSource.items()] as readonly TItem[]);
         const total = dataSource.totalCount();
         totalCount.set(total >= 0 ? total : undefined);
     };

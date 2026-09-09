@@ -198,7 +198,13 @@ headers, interceptors and `AbortSignal` stay in your hands.
   count the server sent with it (`undefined` when it sent none; a widget only
   asks for one when it pages). Both are fed by the DataSource's `changed`
   event, so a header count or an empty-state message describes exactly what
-  the widget renders, with no second request (4.0).
+  the widget renders, with no second request (4.0). This includes a real-time
+  update pushed straight into the store — `store().push([{ type: 'update',
+  key, data }])`, how a websocket message reaches a bound grid: `items()`
+  re-emits with it. Note the vendor's own limit there, not this package's: a
+  *paginated* `DataSource` drops pushed inserts and removes and keeps only
+  updates, because a client cannot know where a server-sorted insert belongs
+  — `reload()` is the route for those.
 - **Page ownership.** A dependency change is a new query, so the store resets
   to page 0 (mirroring `DataSource.filter()` semantics). Manual `reload()`
   refetches the same query and keeps the page. You never manage `pageIndex`

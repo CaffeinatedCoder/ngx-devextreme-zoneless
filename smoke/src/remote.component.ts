@@ -96,6 +96,10 @@ function combineFilters(
             <span class="readout" data-testid="orders-page">{{ ordersPage() }}</span>
             <span class="readout" data-testid="orders-items">{{ orders.items().length }}</span>
             <span class="readout" data-testid="orders-total">{{ orders.totalCount() ?? 'none' }}</span>
+            <span class="readout" data-testid="orders-first-amount">{{
+                orders.items()[0]?.amount ?? 'none'
+            }}</span>
+            <button data-testid="orders-push" (click)="pushOrderUpdate()">push an update</button>
         </div>
         @if (showOrdersGrid()) {
             <dx-data-grid
@@ -246,6 +250,23 @@ export class RemoteComponent {
             return this.loadOrders(options, signal);
         },
     });
+
+    /**
+     * Folds a real-time update into the loaded page without a round trip —
+     * `store().push()` is DevExtreme's own path for a websocket message
+     * reaching a bound grid. Only `type: 'update'` survives here: with a
+     * paginated DataSource the vendor drops pushed inserts and removes
+     * outright (`_onPush` filters to updates, 26.1.4), because a client
+     * cannot know where a server-sorted insert belongs.
+     *
+     * It is also the one path on which the `DataSource` mutates the items
+     * array it has already handed out instead of replacing it, which is what
+     * `items()` has to survive — see the pushed-update case in
+     * `e2e/remote.spec.ts`.
+     */
+    pushOrderUpdate(): void {
+        this.orders.dataSource.store().push([{ type: 'update', key: 1, data: { amount: 999 } }]);
+    }
 
     readonly ordersError = computed(() => {
         const error = this.orders.error();

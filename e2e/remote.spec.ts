@@ -71,6 +71,32 @@ test.describe('remote grid', () => {
         });
     });
 
+    // Guards the shared-array failure mode. A *pushed update* — how a
+    // websocket message reaches a bound grid — is the one push a paginated
+    // DataSource does not drop, and the vendor applies it by mutating the
+    // items array it has already handed out and then firing `changed`.
+    // Publishing that same reference is an `Object.is` no-op, so `items()`
+    // silently stops emitting while the grid renders the change: measured as
+    // the cell reading 999 next to a readout still reading its old amount.
+    test('a pushed update reaches items(), not only the grid', async ({ page }) => {
+        const amountCell = page
+            .locator('#grid-remote-orders .dx-data-row')
+            .first()
+            .locator('td')
+            .nth(3);
+        const before = await amountCell.textContent();
+        expect(before, 'the seeded amount must differ from the pushed one').not.toBe('999');
+        await expect(readout(page, 'orders-first-amount')).toHaveText(before ?? '');
+
+        await readout(page, 'orders-push').click();
+
+        // The vendor's own reaction first, so a failure here reads as "the
+        // push never landed" rather than as a binding defect.
+        await expect(amountCell).toHaveText('999');
+        // The claim: the same change is observable outside the widget.
+        await expect(readout(page, 'orders-first-amount')).toHaveText('999');
+    });
+
     test('paging is remote: page 2 requests skip=10', async ({ page, request }) => {
         await page.locator('#grid-remote-orders .dx-pages .dx-page').nth(1).click();
         await expect(
