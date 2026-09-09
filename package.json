@@ -21,7 +21,7 @@
     "change-detection"
   ],
   "scripts": {
-    "build": "ng-packagr -p ng-package.json -c tsconfig.lib.json",
+    "build": "ng-packagr -p ng-package.json -c tsconfig.lib.json && node scripts/clean-dist-package.mjs",
     "typecheck": "tsc -p tsconfig.examples.json",
     "typecheck:examples": "ngc -p tsconfig.examples.json",
     "smoke": "ng serve smoke",
@@ -64,13 +64,12 @@
   },
   "sideEffects": false,
   "allowScripts": {
-    "esbuild@0.28.1": true,
-    "esbuild@0.27.7": true,
     "msgpackr-extract@3.0.4": true,
-    "inferno@8.2.3": true,
     "fsevents@2.3.3": true,
-    "core-js@3.50.0": true,
     "@parcel/watcher@2.6.0": true,
-    "lmdb@3.5.6": true
+    "lmdb@3.5.6": true,
+    "esbuild@0.28.2": true,
+    "core-js": false,
+    "inferno": false
   }
 }
