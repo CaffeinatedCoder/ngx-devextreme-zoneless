@@ -3,7 +3,9 @@
 The complete two-way binding surface, family by family. **A directive absent
 from these tables does not exist as far as consumers are concerned** — this
 page is the contract the entry points are checked against. Signal Forms'
-`[dxFieldState]` has [its own page](signal-forms.md).
+`[dxFieldState]` has [its own page](signal-forms.md), whose
+[catalog](signal-forms.md#editors-that-carry-it) lists the nineteen editors it
+covers.
 
 ## Editors — `[(dxValue)]`
 

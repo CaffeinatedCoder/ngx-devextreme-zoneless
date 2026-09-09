@@ -252,6 +252,18 @@ a moved block leaves a pointer, never a copy.
   an uncaught exception in a Node server. Every other widget constructs for real on the server;
   `DxServerModule` is what keeps their Inferno-rendered parts from reaching for a global `document`.
   Pinned by `npm run ssr`
+- **A TreeList is not a DataGrid with a parent id — its scrolling and paging defaults differ.**
+  `scrolling.mode` defaults to `'virtual'` on a TreeList and `'standard'` on a DataGrid
+  (`tree_list/m_virtual_scrolling.js`), and `paging.enabled` defaults to `false` where the grid's is
+  `true` (`tree_list/data_controller/m_data_controller.js`). Two consequences bit a coverage screen
+  in 4.0: a visible pager over unpaged data looks like a working one until you click it, and
+  grid_core's `applyState` forces `paging.pageIndex` back to 0 whenever the mode is virtual and the
+  rows view has no height (`grid_core/state_storing/m_state_storing.js`), so a `[(dxGridState)]`
+  restore silently drops the page. A TreeList also pages its node list rather than its
+  `DataSource` — `paging.pageIndex` moves while `dataSource.pageIndex()` stays 0 and every ancestor
+  row keeps rendering — so assert a TreeList paging binding on the widget option, never on the
+  rendered row count. `expandedRowKeys` is what the TreeList's own state-storing module adds to the
+  shared layout, and is the twin difference worth proving
 - **A widget's `state()` is `{}` until it has rendered.** The binding attaches at `initialized`,
   which is before the first layout, so a naive read captures an empty snapshot and — worse — the
   pusher effect can write it *back*, wiping the layout it exists to restore. `[(dxGridState)]`
@@ -272,6 +284,17 @@ a moved block leaves a pointer, never a copy.
   request, and if that escapes the tracking the in-flight count never comes back down: `isLoading`
   stays `true` for the rest of the session and the reason never reaches `error`. Both `load` and
   `byKey` funnel a synchronous throw into the normal rejection path
+- **A pushed update mutates the `DataSource`'s items array in place — never publish that
+  reference into a signal.** A load reassigns `_items`, so a fresh array arrives each time; but
+  `store().push([{type:'update',…}])` applies the change through `applyBatch` on the array the
+  DataSource already handed out and *then* fires `changed`. `items.set(dataSource.items())` is
+  therefore an `Object.is` no-op on that path: the grid re-renders the change and the signal
+  silently stops emitting. `dxRemoteStore` copies the array on every publish; proven by stripping
+  the copy, which turns the pushed-update case in `remote.spec.ts` red on the signal assertion
+  while the grid assertion still passes (4.0). The vendor's own limit is next to it: a *paginated*
+  DataSource keeps only `update` pushes — `_onPush` filters inserts and removes out entirely, and
+  the grid's `_applyBatch` additionally drops an insert with no `index` — so a pushed insert is
+  never observable anywhere without a `reload()`, and a test written around one proves nothing
 - **`DataSource.reload()` keeps `pageIndex`; `DataSource.filter()` resets it.** Dependency changes
   therefore reset to page 0 (a new query is a new result set) while a manual `reload()` keeps the
   page — that asymmetry is vendor semantics, not a choice

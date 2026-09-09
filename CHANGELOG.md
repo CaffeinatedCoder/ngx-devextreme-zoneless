@@ -1,6 +1,6 @@
 # Changelog
 
-## 4.0.0 (unreleased)
+## 4.0.0 (2026-09-08)
 
 ### Breaking changes
 
@@ -30,6 +30,19 @@
 
 ### Fixed
 
+- **`dxRemoteStore`'s `items()` now emits for a pushed update.** The handle
+  published the `DataSource`'s own items array into the signal. That is
+  correct for a load, which replaces the array — but a real-time update
+  pushed into the store (`store().push([{ type: 'update', key, data }])`,
+  how a websocket message reaches a bound grid) is applied by *mutating*
+  the array the `DataSource` already handed out, and it then fires
+  `changed`. Publishing the same reference is an `Object.is` no-op, so the
+  grid re-rendered the change while `items()` silently never emitted it —
+  measured as a grid cell reading 999 next to a readout still reading 87.
+  The signal now gets a fresh array per publish. Note the vendor limit this
+  exposed, which is not ours to fix: a paginated `DataSource` drops pushed
+  inserts and removes and keeps only updates, so `reload()` remains the
+  route for those.
 - **The chart selection adapters no longer throw on the server.** DevExtreme
   builds every viz widget as an empty stand-in when there is no `window`
   (`isServerSide ? getEmptyComponent()` in the viz base, 26.1.4), whose
@@ -201,7 +214,8 @@
 ### Tests
 
 - **Every directive is now driven through the zoneless app, not merely every
-  family.** The binding screen placed 14 widget tags, which left 26 of the 40
+  family — all 116 of them, checked mechanically.** The binding screen placed 14
+  widget tags, which left 26 of the 40
   adapted widgets — and 17 of the 18 `[dxFieldState]` editors — with no
   runtime coverage; both 3.0 defects lived in exactly such directives. Two new
   screens close that: `/coverage` places every `[(dxValue)]`, `[(dxSelectedIndex)]`,
@@ -216,6 +230,21 @@
   inputs — the widget → signal direction is driven by writing the widget's
   option through its instance, the same setter the gesture ends in. The suite
   grew from 104 to 207 cases and runs in about 75 seconds.
+
+  The last twelve arrived late, found by diffing every directive selector
+  against every widget element in the smoke screens rather than by reading the
+  list: the seven TreeList halves of the grid-state family (whose DataGrid
+  twins were covered and whose bases are shared), `dx-data-grid`'s
+  `[(dxFilterValue)]` and `[(dxPageSize)]` (placed only on a card view), and
+  `[(dxValue)]` on the number box, date box and tag box (placed only under
+  `[dxFieldState]`). Placing them turned up two vendor asymmetries a DataGrid
+  never shows: a TreeList defaults `scrolling.mode` to `'virtual'` where the
+  DataGrid defaults to `'standard'`, and grid_core's state restore forces
+  `paging.pageIndex` back to 0 under virtual scrolling without a rows-view
+  height — so a restored page is silently dropped. The TreeList state case
+  therefore asserts on `expandedRowKeys`, which is what the TreeList's own
+  state-storing module adds to the shared layout and the honest twin
+  difference to prove.
 - **A signal read inside a widget-rendered `*dxTemplate` is pinned** to
   re-render on the signal change with no zone (a list item template on
   `/coverage`). Consumers' cell and item templates rely on exactly this and
@@ -270,6 +299,12 @@
 - `docs/directives.md` names the options that are read-only by vendor design
   (`selectedCellData`, `focusedColumnIndex`) and the composition-API route for
   them, so "no directive" reads as a decision rather than a gap.
+- `docs/signal-forms.md` now **names** the nineteen editors that carry
+  `[dxFieldState]`, with each one's field value type. The page stated the
+  count and the rule but never the list, which left those nineteen directives
+  outside the catalog the docs claim as their contract; it also now records
+  that `dx-filter-builder` and `dx-range-selector` have `[(dxValue)]` and no
+  `[dxFieldState]`, because neither extends `Editor`.
 
 ### Not in this release, by decision
 

@@ -107,17 +107,45 @@ every value change by comparing against its own initial value (verified against
 26.1.4). An external write would have no visible effect and would be clobbered
 by the next keystroke.
 
-Available on all 19 editor families that carry DevExtreme's `Editor` validation
-surface — `dx-file-uploader` included since 4.0, whose value is the picked
-`File[]`. `dx-filter-builder` is excluded — it extends `WidgetOptions`, not
-`EditorOptions`, and has none of these options.
-
 **One owner for the value.** Do not put `[(dxValue)]` and `[formField]` on the
 same editor — they are two writers of the same option. Angular 22.1.3 added a
 diagnostic that reports forbidden two-way bindings on an element where
 `FormField` is applied, so this is now diagnosed rather than merely discouraged.
 Use `[(dxValue)]` outside Signal Forms, and `[formField]` + `[dxFieldState]`
 inside them.
+
+## Editors that carry it
+
+Nineteen directives, one per editor family that carries DevExtreme's `Editor`
+validation surface. `DX_FIELD_STATE_DIRECTIVES` imports all of them at once.
+The field's value type matches the
+[`[(dxValue)]` family](directives.md#editors--dxvalue) exactly, and the
+`SameValueType` pins in `examples/type-tests.ts` stop compiling if the two
+ever drift.
+
+| Component | Field value type |
+|---|---|
+| `dx-text-box`, `dx-text-area`, `dx-html-editor` | `string` |
+| `dx-number-box` | `number \| null` |
+| `dx-check-box` | `boolean \| null` |
+| `dx-switch` | `boolean` |
+| `dx-date-box` | `DxDateValue \| null` |
+| `dx-date-range-box` | `DxDateRange` |
+| `dx-calendar` | `DxDateValue \| readonly DxDateValue[] \| null` |
+| `dx-color-box`, `dx-autocomplete` | `string \| null` |
+| `dx-slider` | `number` |
+| `dx-range-slider` | `DxNumberRange` |
+| `dx-select-box`, `dx-lookup`, `dx-drop-down-box`, `dx-radio-group` | generic `TValue` — inferred from your field |
+| `dx-tag-box` | generic `readonly TKey[]` |
+| `dx-file-uploader` | `readonly File[]` — the picked files, since 4.0 |
+
+**Two widgets that have `[(dxValue)]` have no `[dxFieldState]`**, both because
+they are not editors: `dx-filter-builder` extends `WidgetOptions` rather than
+`EditorOptions`, and `dx-range-selector` is a visualization widget extending
+`BaseWidget` (`viz/range_selector.d.ts:634`). Neither declares `isValid`,
+`validationErrors`, `validationStatus` or `readOnly`, and neither inherits
+`Editor._renderValidationState()` — so there is nothing for the field's state
+to reach (verified against 26.1.4).
 
 ## Debounce ownership
 
