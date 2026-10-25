@@ -1,5 +1,81 @@
 # Changelog
 
+## 4.1.0 (2026-10-25)
+
+### Added
+
+- **`dxGridRows` / `dxGridColumns` — a grid's complete row and column axes, in
+  display order** (`ngx-devextreme-zoneless/data`). Both of DevExtreme's public
+  readers are windowed under virtual rendering: measured on a 60 × 20 grid,
+  `getVisibleRows()` answers about 10 of the 60 rows and `getVisibleColumns()`
+  about 5 of the 20, and the windowed column list carries virtual spacer entries
+  at its ends. Anything that works past the edge of the screen — a range
+  selection, a fill handle, an export of what the user sees — cannot be built on
+  them. Both take a `dx-data-grid` or `dx-tree-list` instance and infer that
+  widget's own `Row` and `Column` types. `dx-card-view` deliberately does not
+  fit: it has no virtualization, so its own `getVisibleCards()` is already
+  complete for the page. Two limits are documented rather than hidden:
+  "complete" means *loaded*, not the whole dataset, and `dxGridColumns` answers
+  `[]` while `stateStoring` is still loading.
+- **`dxFocusedCellSignal` / `dxFocusedCardSignal` — the focused cell of a grid
+  and the focused card of a CardView, as read-only signals**
+  (`ngx-devextreme-zoneless/data`). The value is `{ rowKey, columnField }` —
+  named rather than numbered, because under column virtualization the event's
+  `columnIndex` is window-relative and counts the virtual spacers while the
+  `focusedColumnIndex` option is absolute. These are readers rather than
+  bindings: the widget owns the state and a write moves nothing, which is the
+  same reason this package has never shipped a `focusedColumnIndex` directive.
+  The widget also never reports losing focus, so the signal keeps the last
+  focused cell after the user tabs away; `docs/composition-api.md` says what to
+  do if you need "nothing is focused".
+
+### Changed
+
+- **Built and verified against DevExtreme 26.1.6 and Angular 22.2.3**, up from
+  26.1.4 and 22.1.3. **Peer ranges are unchanged** — `@angular/core >=22.1 <23`,
+  `devextreme`/`devextreme-angular >=26.1` — so there is nothing to do on
+  upgrade; what moved is what the compatibility net actually exercises. Worth
+  knowing because 26.1.5 and 26.1.6 were not quiet patch releases: they split
+  state storing, added a data-source controller, renamed the TreeList data
+  controller and deleted `m_virtual_data_loader.js`. All four gates are green on
+  them, and `totalItemsCount()` changing controllers broke exactly one test
+  helper and no shipped code.
+
+- **The documentation's examples no longer use DevExtreme's deprecated nested
+  configuration components.** `<dxo-selection>`, `<dxo-zoom-and-pan>` and
+  `<dxi-value-axis>` in the README and `docs/directives.md` are now
+  `<dxo-data-grid-selection>`, `<dxo-chart-zoom-and-pan>` and
+  `<dxi-chart-value-axis>`, and all 91 occurrences on the reference screens the
+  examples are written from moved with them. `W3001` is
+  `LEGACY_CONFIG_COMPONENT_USED`: copying an example from this package was
+  handing you a spelling the vendor asks you to stop using. Nothing about the
+  bindings changed — the named components are the same generated classes, and
+  every widget module already exported them, so no import of yours has to
+  change either.
+
+### Fixed
+
+- **`[(dxEditingChanges)]` now recomputes a DataGrid's summaries where a typed
+  edit does.** With `summary.recalculateWhileEditing` on, the grid recomputes its
+  group and total summaries when the *user* edits a cell — the editing
+  controller's own change handlers call the summary module's refresh — while a
+  change written from the signal ended in
+  `updateItems({ repaintChangesOnly: true })` and recomputed nothing. The same
+  pending change therefore rendered two ways depending on who set it: the
+  modified cell appeared, the footer kept the pre-change total. The binding now
+  runs the vendor's own recompute after a signal-side write, over the rows the
+  grid already holds; its row diff then finds nothing to repaint, because the
+  change write has already done that.
+
+  **Nothing changes at the default.** `summary.recalculateWhileEditing` is
+  `false` out of the box, and the grid then totals saved data deliberately, so
+  the binding stays inert there — pinned by its own e2e case rather than left to
+  reasoning. Two limits are the widget's and not the binding's: under
+  `remoteOperations.summary` the server owns the numbers and cannot know your
+  pending changes, and `cacheEnabled: false` makes the recompute re-read the
+  store, exactly as it does when the user types. `dx-tree-list` has no `summary`
+  option, so nothing there changes.
+
 ## 4.0.0 (2026-09-09)
 
 ### Breaking changes

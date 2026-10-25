@@ -23,8 +23,8 @@ splitter, resizable, chat, calendar zoom, focused row index, value-axis range) a
 rendering a measured CI step instead of an open question.
 
 ## Stack
-Angular ≥22.1 <23 (built against 22.1.3, zoneless) · DevExtreme / devextreme-angular ≥26.1 (built against
-26.1.4) · TypeScript 6.0 `strict`, zero `any` in the public surface · ng-packagr · Playwright
+Angular ≥22.1 <23 (built against 22.2.3, zoneless) · DevExtreme / devextreme-angular ≥26.1 (built against
+26.1.6) · TypeScript 6.0 `strict`, zero `any` in the public surface · ng-packagr · Playwright
 
 ## Structure
 Eight secondary entry points, each its own `src/public-api.ts`. The split is load-bearing: it is what

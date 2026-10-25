@@ -108,12 +108,12 @@ function combineFilters(
                 [remoteOperations]="true"
                 [(dxPageIndex)]="ordersPage"
                 style="max-width: 640px">
-                <dxo-paging [pageSize]="10" />
-                <dxo-pager [visible]="true" [showInfo]="true" />
-                <dxi-column dataField="id" [width]="70" />
-                <dxi-column dataField="customer" />
-                <dxi-column dataField="status" />
-                <dxi-column dataField="amount" />
+                <dxo-data-grid-paging [pageSize]="10" />
+                <dxo-data-grid-pager [visible]="true" [showInfo]="true" />
+                <dxi-data-grid-column dataField="id" [width]="70" />
+                <dxi-data-grid-column dataField="customer" />
+                <dxi-data-grid-column dataField="status" />
+                <dxi-data-grid-column dataField="amount" />
             </dx-data-grid>
         }
         <div class="row">
@@ -130,22 +130,22 @@ function combineFilters(
                 [remoteOperations]="true"
                 [(dxSelectedRowKeys)]="selectedCustomerIds"
                 style="max-width: 300px">
-                <dxo-selection mode="single" />
-                <dxo-paging [pageSize]="6" />
-                <dxo-pager [visible]="true" />
-                <dxi-column dataField="id" [width]="70" />
-                <dxi-column dataField="name" />
+                <dxo-data-grid-selection mode="single" />
+                <dxo-data-grid-paging [pageSize]="6" />
+                <dxo-data-grid-pager [visible]="true" />
+                <dxi-data-grid-column dataField="id" [width]="70" />
+                <dxi-data-grid-column dataField="name" />
             </dx-data-grid>
             <dx-data-grid
                 id="grid-detail-orders"
                 [dataSource]="detailOrders.dataSource"
                 [remoteOperations]="true"
                 style="max-width: 480px">
-                <dxo-paging [pageSize]="6" />
-                <dxo-pager [visible]="true" />
-                <dxi-column dataField="id" [width]="70" />
-                <dxi-column dataField="status" />
-                <dxi-column dataField="amount" />
+                <dxo-data-grid-paging [pageSize]="6" />
+                <dxo-data-grid-pager [visible]="true" />
+                <dxi-data-grid-column dataField="id" [width]="70" />
+                <dxi-data-grid-column dataField="status" />
+                <dxi-data-grid-column dataField="amount" />
             </dx-data-grid>
         </div>
         <p>
@@ -172,16 +172,16 @@ function combineFilters(
                 groupPaging: true
             }"
             style="max-width:560px">
-            <dxo-group-panel [visible]="false" />
-            <dxo-grouping [autoExpandAll]="false" />
-            <dxo-paging [pageSize]="5" />
-            <dxi-column dataField="status" [groupIndex]="0" />
-            <dxi-column dataField="id" [width]="70" />
-            <dxi-column dataField="amount" />
-            <dxo-summary>
-                <dxi-total-item column="amount" summaryType="sum" />
-                <dxi-group-item column="amount" summaryType="sum" [showInGroupFooter]="false" />
-            </dxo-summary>
+            <dxo-data-grid-group-panel [visible]="false" />
+            <dxo-data-grid-grouping [autoExpandAll]="false" />
+            <dxo-data-grid-paging [pageSize]="5" />
+            <dxi-data-grid-column dataField="status" [groupIndex]="0" />
+            <dxi-data-grid-column dataField="id" [width]="70" />
+            <dxi-data-grid-column dataField="amount" />
+            <dxo-data-grid-summary>
+                <dxi-data-grid-total-item column="amount" summaryType="sum" />
+                <dxi-data-grid-group-item column="amount" summaryType="sum" [showInGroupFooter]="false" />
+            </dxo-data-grid-summary>
         </dx-data-grid>
 
         <h3>TreeList with remote hierarchy (parentIds)</h3>
@@ -194,8 +194,8 @@ function combineFilters(
             hasItemsExpr="hasItems"
             [showBorders]="true"
             style="max-width:420px">
-            <dxi-column dataField="name" />
-            <dxi-column dataField="kind" />
+            <dxi-tree-list-column dataField="name" />
+            <dxi-tree-list-column dataField="kind" />
         </dx-tree-list>
 
         <h3>Language-sensitive sorting (langParams)</h3>
@@ -204,7 +204,7 @@ function combineFilters(
             [dataSource]="collated.dataSource"
             [remoteOperations]="true"
             style="max-width:320px">
-            <dxi-column dataField="name" [sortIndex]="0" sortOrder="asc" />
+            <dxi-data-grid-column dataField="name" [sortIndex]="0" sortOrder="asc" />
         </dx-data-grid>
 
         <h3>Lookup editor (debounced search + byKey)</h3>

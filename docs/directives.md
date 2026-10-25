@@ -67,7 +67,7 @@ each write, so the signal converges to the level the calendar actually shows.
 | `dx-list[dxSelectedItemKeys]` | `readonly TKey[]` |
 | `dx-tree-view[dxSelectedNodeKeys]` | `readonly TKey[]` (method-based: `getSelectedNodeKeys` / `selectItem`) |
 | `dx-tree-view[dxExpandedNodeKeys]` | `readonly TKey[]` — the expanded nodes (method-based: `getNodes` / `expandItem`, `collapseAll`); the complete set, `[]` collapses all |
-| `dx-data-grid[dxSelectionFilter]` | `DxFilterExpression \| null` — deferred selection (`<dxo-selection mode="multiple" [deferred]="true" />`); **`dx-data-grid` only** |
+| `dx-data-grid[dxSelectionFilter]` | `DxFilterExpression \| null` — deferred selection (`<dxo-data-grid-selection mode="multiple" [deferred]="true" />`); **`dx-data-grid` only** |
 | `dx-card-view[dxSelectedCardKeys]` | `readonly TKey[]` — keys that match no card are dropped by the widget asynchronously and folded back in |
 | `dx-file-manager[dxCurrentPathKeys]` | `readonly string[]` — the current directory as its key path (`['Docs', 'Docs/Reports']` by default); a path that does not exist is corrected back by the widget |
 | `dx-file-manager[dxSelectedItemKeys]` | `readonly string[]` |
@@ -96,7 +96,7 @@ each write, so the signal converges to the level the calendar actually shows.
 the grids' core: every one of its two-way states is a real option write and it
 fires `contentReady` after every load, so the grid bases apply unchanged.
 CardView has no focused-card *option* (only an `onFocusedCardChanged` event), so
-there is no focus binding for it.
+there is no focus binding for it — `dxFocusedCardSignal` reads that event.
 
 `[(dxFocusedRowIndex)]` is the render-relative counterpart of
 `[(dxFocusedRowKey)]`: prefer the key where identity across reloads matters.
@@ -105,7 +105,9 @@ click and arrow key, but pre-positions silently during virtual-scroll
 navigation and resets it through a data operation when paging invalidates the
 focused key, hence the family's `contentReady` re-read. `focusedColumnIndex`
 has no directive on purpose: its change handler is a no-op marker, so a write
-would move nothing — read it with `dxOptionSignal`.
+would move nothing — read it with `dxOptionSignal`, or read the focused cell as
+a whole with `dxFocusedCellSignal`, which names the column instead of numbering
+it (the event's index is window-relative under column virtualization).
 
 `[(dxEditingChanges)]` and `[(dxEditRowKey)]` put the grids' editing state on
 signals — the state DevExtreme designed for external ownership (it is how the
@@ -114,6 +116,18 @@ React and Vue wrappers keep batch edits in application state). A change is
 the signal's objects, so a change you hold is never mutated behind your back.
 Both are nested options (`editing.*`), hence method-based, with the family's
 `contentReady` re-read.
+
+A signal-side write also brings the grid's **summaries** up to date — but only
+where the widget itself would. `summary.recalculateWhileEditing` is what lets a
+pending edit reach the aggregates at all, and with it off (the default) the grid
+deliberately totals saved data. With it on, a *typed* edit recomputed and an
+`editing.changes` write did not, so the same state rendered two ways depending
+on who set it; the binding now runs the same recompute the widget runs, over the
+rows it already holds rather than the store. Two limits come from the widget and
+not from the binding: under `remoteOperations.summary` the server owns the
+numbers and cannot know your pending changes, and `cacheEnabled: false` makes
+that recompute re-read the store — exactly as it does when the user types. The
+TreeList has no `summary` option, so nothing happens there.
 
 `[(dxSelectionFilter)]` is the remote-scale counterpart of
 `[(dxSelectedRowKeys)]`: with deferred selection the grid keeps no key array,
@@ -187,7 +201,7 @@ toggle the clicked point's selection by default — opt out with
 
 `[(dxVisualRange)]` binds `argumentAxis.visualRange`, so several charts can
 share one window or a zoom can be persisted and restored. Enable zooming with
-`<dxo-zoom-and-pan argumentAxis="both" [allowMouseWheel]="true" />`. A written
+`<dxo-chart-zoom-and-pan argumentAxis="both" [allowMouseWheel]="true" />`. A written
 range is applied verbatim, as a `[start, end]` pair or a
 `{ startValue, endValue }` object (measured: neither shape nor bounds are
 normalized on the way in), and the chart writes its own zoom and pan results
@@ -198,9 +212,9 @@ the signal is `undefined` only before the first render (and `undefined` means
 `dxVisualRangeDebounce`.
 
 `[(dxValueAxisVisualRange)]` is the same binding for `valueAxis.visualRange`
-(`<dxo-zoom-and-pan valueAxis="both" />`): the chart writes it back through
+(`<dxo-chart-zoom-and-pan valueAxis="both" />`): the chart writes it back through
 the same setter, applies a written range the same way and reports the full
-range once rendered. With several value axes (`<dxi-value-axis>`) it follows
+range once rendered. With several value axes (`<dxi-chart-value-axis>`) it follows
 the first.
 
 ## Components without a dedicated directive

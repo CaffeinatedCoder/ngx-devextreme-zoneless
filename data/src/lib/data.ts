@@ -707,6 +707,50 @@ export class DxTreeViewExpandedNodeKeysDirective<
 /** A pending edit as the grids' `editing.changes` declare it: `{ type, key, data }`. */
 export type DxDataChange<TRowData = unknown, TKey = unknown> = DataChange<TRowData, TKey>;
 
+/**
+ * A typed cell edit recomputes the grid's summaries; a write to
+ * `editing.changes` did not. `_handleChangesChange` ends in
+ * `updateItems({ repaintChangesOnly: true })`, and the footer is then rebuilt
+ * from whatever aggregates the last load left behind
+ * (`grid_core/editing/m_editing.js:517` →
+ * `data_grid/summary/extenders/summary_data_controller.js:221`, 26.1.6) — so the
+ * same pending change rendered two ways depending on who set it.
+ *
+ * This runs the recompute the widget runs for its own edits, taken from
+ * `_refreshSummary` (`data_grid/summary/m_summary.js:358`): same gate, same
+ * options object. `summary.recalculateWhileEditing` *is* the opt-in — with it
+ * off the grid totals saved data deliberately, and it is `undefined` on a
+ * TreeList, which has no summary module at all, so this adapter stays shared.
+ *
+ * **The gate is a cost guard, not a correctness guard** — measured, not reasoned:
+ * stripping it leaves every case in `bindings.spec.ts` green, six runs out of
+ * six, because a recompute with the flag off totals the *unedited* data and so
+ * lands on the same number. What it saves is the work: without it every
+ * signal-side write to `editing.changes` would cost a `dataSource.load()` and a
+ * diff render on every grid, TreeLists and grids with no summary included. No
+ * case can kill it, so it is a default kept for its cost, in the sense
+ * `.claude/rules/adapters.md` means.
+ *
+ * Two details are load-bearing. `refresh` is a public method
+ * (`modules/modules.js:287` forwards it to the data controller) whose typings
+ * declare only `()` and `(changesOnly: boolean)`, hence the cast for the object
+ * form — and the object form is the point: it *loads* rather than reloads, so
+ * the adapter's cached store data short-circuits `_loadFromStore` and no request
+ * goes out, where `refresh(true)` would clear the cache and re-read. The
+ * vendor's own `!isSaving()` guard is deliberately not mirrored: its call sites
+ * fire inside the grid's save routine, while this one runs only when a consumer
+ * writes the signal.
+ */
+function refreshSummariesWhileEditing(instance: DxWidget): void {
+    if ((instance.option as (name: string) => unknown)('summary.recalculateWhileEditing') !== true) {
+        return;
+    }
+    (instance as unknown as { refresh(options: unknown): void }).refresh({
+        load: true,
+        changesOnly: true,
+    });
+}
+
 function gridEditingChangesAdapter<TRowData, TKey>(): DxBindingAdapter<
     DxWidget,
     readonly DxDataChange<TRowData, TKey>[]
@@ -725,10 +769,25 @@ function gridEditingChangesAdapter<TRowData, TKey>(): DxBindingAdapter<
                     | undefined) ?? [],
             ),
         (instance, changes) => {
+            // Mirrors `_handleChangesChange`'s own empty-to-empty early return
+            // (`m_editing.js:501`): with nothing pending before or after, no
+            // aggregate can differ from the saved data. That case is not
+            // hypothetical — `initialSync` defaults to `'auto'` and a consumer's
+            // model holds `[]`, so the binding's first push is an empty write, and
+            // without this it would issue a data load from inside the widget's
+            // `initialized` handler, where CLAUDE.md documents that writes behave
+            // unlike any later one.
+            const hadChanges =
+                ((((instance.option as (name: string) => unknown)('editing.changes') as
+                    | readonly unknown[]
+                    | undefined) ?? []).length > 0);
             (instance.option as (name: string, value: unknown) => void)(
                 'editing.changes',
                 dxStructuralClone(changes),
             );
+            if (hadChanges || changes.length > 0) {
+                refreshSummariesWhileEditing(instance);
+            }
         },
     );
 }

@@ -39,12 +39,19 @@ import type {
     DxCalendarZoomLevel,
     DxDataChange,
     DxResizableSize,
+    DxGridAxes,
+    DxFocusedCell,
+    DxFocusedCard,
 } from 'ngx-devextreme-zoneless';
 import type DataSource from 'devextreme/data/data_source';
 import {
     bindDxOption,
     dxArrayStoreSource,
     dxEventSignal,
+    dxFocusedCardSignal,
+    dxFocusedCellSignal,
+    dxGridColumns,
+    dxGridRows,
     dxInstanceSignal,
     dxLoadOptionsParams,
     dxOptionSignal,
@@ -174,6 +181,19 @@ const gridFilterOption: DxHostOptionName<Grid> = 'filterValue';
 const gridFocusOption: DxHostOptionName<Grid> = 'focusedRowKey';
 expectType<number | undefined>(undefined as DxHostOptionValue<Grid, 'focusedRowKey'>);
 
+/* The summary recompute `[(dxEditingChanges)]` performs after a signal-side
+ * write is gated on the widget's own `summary.recalculateWhileEditing`: with it
+ * off the grid deliberately keeps pending edits out of its aggregates, so the
+ * binding has to stay inert there. Both names are pinned because a vendor
+ * rename would not break the gate — it would make it silently always-false,
+ * which is the one failure mode a type system can catch here and a test on the
+ * default screen cannot. */
+const gridSummaryOption: DxHostOptionName<Grid> = 'summary';
+expectType<boolean | undefined>(
+    (undefined as unknown as NonNullable<DxHostOptionValue<Grid, 'summary'>>)
+        .recalculateWhileEditing,
+);
+
 /* `[(dxExpandedRowKeys)]` is a plain option binding, so its option name and
  * element type must stay derivable from the TreeList's Properties. It is also
  * the one grid-state binding with no dx-data-grid counterpart: the grid has no
@@ -192,6 +212,44 @@ const gridContentReadyEvent: DxHostEventName<Grid> = 'contentReady';
 declare const gridInstance_: DxInstanceOf<Grid>;
 expectType<(text: string) => void>(gridInstance_.searchByText);
 expectType<number>(gridInstance_.pageIndex());
+
+/* The read-only focus signals cast their event name — a generic host cannot have
+ * it checked at the declaration site — so each name needs a positive control
+ * here. `dx-card-view` carries the *other* name on purpose: it has no
+ * focused-card option at all, only this event, which is why it has no entry in
+ * the directive tables. */
+const gridFocusedCellEvent: DxHostEventName<Grid> = 'focusedCellChanged';
+const treeListFocusedCellEvent: DxHostEventName<TreeList> = 'focusedCellChanged';
+const cardViewFocusedCardEvent: DxHostEventName<CardView> = 'focusedCardChanged';
+// @ts-expect-error — a card is not a cell; dx-card-view has no focusedCellChanged
+const cardViewFocusedCellEvent: DxHostEventName<CardView> = 'focusedCellChanged';
+
+/* `dxGridRows`/`dxGridColumns` are structural over both grids, so each widget's
+ * own Row and Column types are inferred from its own declarations rather than
+ * named here — and `dx-card-view` must *not* match: it has `getVisibleCards()`,
+ * is not built on grid_core, and has no row or column virtualization. */
+declare function acceptsGridAxes<TRow, TColumn>(instance: DxGridAxes<TRow, TColumn>): void;
+declare const treeListInstance_: DxInstanceOf<TreeList>;
+declare const cardView: DxCardViewComponent<{ id: number }, number>;
+acceptsGridAxes(gridInstance_);
+acceptsGridAxes(treeListInstance_);
+// @ts-expect-error — dx-card-view exposes getVisibleCards(), not getVisibleRows()
+acceptsGridAxes(cardViewInstance_);
+expectType<string | undefined>(dxGridRows(gridInstance_)[0]?.rowType);
+expectType<number | undefined>(dxGridRows(gridInstance_)[0]?.key);
+expectType<string | undefined>(dxGridColumns(gridInstance_)[0]?.dataField);
+
+inInjectionContext(() => {
+    const focusedCell: DxFocusedCell<number> | undefined = dxFocusedCellSignal<Grid, number>(
+        () => grid,
+    )();
+    expectType<number | undefined>(focusedCell?.rowKey);
+    expectType<string | undefined>(focusedCell?.columnField);
+    const focusedCard: DxFocusedCard<number> | undefined = dxFocusedCardSignal<CardView, number>(
+        () => cardView,
+    )();
+    expectType<number | undefined>(focusedCard?.cardKey);
+});
 
 /* ------------------------------------------------------------------------ *
  * bindDxOption links option name and signal type

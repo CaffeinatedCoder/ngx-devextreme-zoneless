@@ -126,6 +126,73 @@ test.describe('tree list [(dxEditingChanges)]', () => {
     });
 });
 
+test.describe('data grid [(dxEditingChanges)] and summaries', () => {
+    // The grid recomputes its group and total summaries when the *user* edits a
+    // cell, but `editing.changes` written from the signal only repainted rows —
+    // same state, two spellings, two renderings. `summary.recalculateWhileEditing`
+    // is what lets a pending edit reach the aggregates at all: #nb-grid-sum has it
+    // on, #nb-grid-sum-off leaves it at its default, which is where the binding
+    // must add nothing. Saved total is 60; the pending change raises it to 240.
+    const total = (page: Page, id: string): Locator =>
+        page.locator('#' + id + ' .dx-datagrid-total-footer .dx-datagrid-summary-item').first();
+
+    test('widget → summary: a typed batch edit moves the total (the vendor control)', async ({
+        page,
+    }) => {
+        await expect(total(page, 'nb-grid-sum')).toHaveText('Sum: 60');
+        const cell = page
+            .locator('#nb-grid-sum .dx-data-row', { hasText: 'Globex' })
+            .locator('td')
+            .nth(2);
+        await cell.click();
+        const editor = page.locator('#nb-grid-sum input.dx-texteditor-input');
+        await editor.fill('200');
+        await editor.press('Tab');
+        await expect(readout(page, 'nb-grid-sum-readout')).toContainText('"update"');
+        await expect(total(page, 'nb-grid-sum')).toHaveText('Sum: 240');
+    });
+
+    test('signal → summary: a change written from the signal moves the total', async ({ page }) => {
+        await expect(total(page, 'nb-grid-sum')).toHaveText('Sum: 60');
+        await readout(page, 'nb-grid-sum-set').click();
+        const row = page.locator('#nb-grid-sum .dx-data-row', { hasText: 'Globex' });
+        await expect(row.locator('.dx-cell-modified')).toHaveCount(1);
+        await expect(total(page, 'nb-grid-sum')).toHaveText('Sum: 240');
+        await readout(page, 'nb-grid-sum-clear').click();
+        await expect(row.locator('.dx-cell-modified')).toHaveCount(0);
+        await expect(total(page, 'nb-grid-sum')).toHaveText('Sum: 60');
+    });
+
+    test('without recalculateWhileEditing the total stays at the saved value', async ({ page }) => {
+        // The negative assertion hangs on a positive event, not on a wall-clock
+        // guess. The recompute lands about 27ms after the pending change renders
+        // (the grid's load goes through a `setTimeout`), so polling this footer
+        // straight after the modified cell reads the saved total whether the
+        // binding behaves or not — measured: the first poll matched 4ms in, with
+        // no mismatched poll. Writing #nb-grid-sum *second* and waiting for its
+        // footer proves a whole recompute cycle has gone by, and the -off write
+        // was issued first, so a leaked refresh would have been queued ahead of
+        // this one.
+        //
+        // What this case proves, measured both ways: it goes red when the fix
+        // stops working, on the #nb-grid-sum assertion below. It stays green when
+        // the adapter's `recalculateWhileEditing` gate is stripped — six runs out
+        // of six. That is a fact about the widget rather than a weak test: with
+        // the flag off a recompute totals the *unedited* data and lands on the
+        // same number, so the gate saves work, not correctness. What this case
+        // pins is the guarantee a consumer can see — switching
+        // `[(dxEditingChanges)]` on must not make summaries live behind their back.
+        await expect(total(page, 'nb-grid-sum-off')).toHaveText('Sum: 60');
+        await readout(page, 'nb-grid-sum-off-set').click();
+        await expect(page.locator('#nb-grid-sum-off .dx-cell-modified')).toHaveCount(1);
+
+        await readout(page, 'nb-grid-sum-set').click();
+        await expect(total(page, 'nb-grid-sum')).toHaveText('Sum: 240');
+
+        await expect(total(page, 'nb-grid-sum-off')).toHaveText('Sum: 60');
+    });
+});
+
 test.describe('data grid [(dxEditRowKey)]', () => {
     test('widget → signal: the edit link', async ({ page }) => {
         await page.locator('#nb-grid-row .dx-data-row', { hasText: 'Globex' }).locator('.dx-link-edit').click();
@@ -292,5 +359,62 @@ test.describe('polar chart [(dxSelectedPoints)]', () => {
         await readout(page, 'nb-polar-set').click();
         await expect(readout(page, 'nb-polar-readout')).toContainText('"E"');
         await expect(readout(page, 'nb-polar-readout')).not.toContainText('"N"');
+    });
+});
+
+test.describe('dxGridRows / dxGridColumns under virtual rendering', () => {
+    // One direction, and that is all there is: these are readers, not bindings,
+    // so there is nothing to push back into the widget. Calling that a half-
+    // covered binding would be reading the wrong rule.
+    //
+    // The load-bearing assertion is not that the complete counts are 60 and 20.
+    // It is that the *rendered* counts are smaller — against a grid that is not
+    // really windowing, DevExtreme's own public readers answer 60 and 20 as
+    // well, and this case would pass while proving nothing at all.
+    test('the complete axes reach past the rendered window', async ({ page }) => {
+        await readout(page, 'nb-axes-read').click();
+        const text = readout(page, 'nb-axes-readout');
+        await expect(text).toContainText('"completeRows": 60');
+        const axes = JSON.parse((await text.textContent()) ?? '{}') as {
+            renderedRows: number;
+            completeRows: number;
+            renderedColumns: number;
+            completeColumns: number;
+        };
+        expect(axes.completeRows).toBe(60);
+        expect(axes.completeColumns).toBe(20);
+        expect(axes.renderedRows).toBeLessThan(axes.completeRows);
+        expect(axes.renderedColumns).toBeLessThan(axes.completeColumns);
+    });
+});
+
+test.describe('dxFocusedCellSignal / dxFocusedCardSignal', () => {
+    const focusCell = (page: Page): Promise<void> =>
+        page
+            .locator('#nb-focus-grid .dx-data-row', { hasText: 'Acme' })
+            .locator('td')
+            .nth(1)
+            .click();
+
+    test('widget → signal: a click names the row key and the column field', async ({ page }) => {
+        await focusCell(page);
+        await expect(readout(page, 'nb-focus-cell-readout')).toContainText(
+            '"columnField": "customer"',
+        );
+        await expect(readout(page, 'nb-focus-cell-readout')).toContainText('"rowKey": 1');
+    });
+
+    test('widget → signal: an arrow key moves it, so keyboard focus is reported too', async ({
+        page,
+    }) => {
+        await focusCell(page);
+        await expect(readout(page, 'nb-focus-cell-readout')).toContainText('"rowKey": 1');
+        await page.keyboard.press('ArrowDown');
+        await expect(readout(page, 'nb-focus-cell-readout')).toContainText('"rowKey": 2');
+    });
+
+    test('widget → signal: a card view reports its focused card', async ({ page }) => {
+        await page.locator('#nb-focus-cards .dx-cardview-card').nth(1).click();
+        await expect(readout(page, 'nb-focus-card-readout')).toContainText('"cardKey": 2');
     });
 });
