@@ -24,8 +24,8 @@ Angular signal  ──effect──▶  widget option / method
 Angular signal  ◀──set────  widget event (optionChanged, selectionChanged, …)
 ```
 
-- **Angular** ≥ 22.1 < 23 (built and verified against Angular 22.1.3, zoneless by default)
-- **DevExtreme / devextreme-angular** ≥ 26.1 (built and verified against 26.1.4)
+- **Angular** ≥ 22.1 < 23 (built and verified against Angular 22.2.3, zoneless by default)
+- **DevExtreme / devextreme-angular** ≥ 26.1 (built and verified against 26.1.6)
 - **TypeScript** 6.0, `strict`, zero `any` in the public surface
 
 > **Why this library exists:** DevExpress officially still requires zone.js.
@@ -65,7 +65,7 @@ import {
   template: `
     <dx-text-box [(dxValue)]="search" [dxValueDebounce]="300" />
     <dx-data-grid [(dxSelectedRowKeys)]="selected" [dataSource]="orders" keyExpr="id">
-      <dxo-selection mode="multiple" />
+      <dxo-data-grid-selection mode="multiple" />
     </dx-data-grid>
   `,
 })
@@ -138,7 +138,7 @@ ngx-devextreme-zoneless/data-source → dxArrayStoreSource, dxReloadOn, dxRemote
 ngx-devextreme-zoneless/editors    → [(dxValue)], [(dxOpened)], [(dxZoomLevel)], [(dxInputFieldText)]
 ngx-devextreme-zoneless/navigation → [(dxSelectedIndex)], [(dxOpened)], splitter and resizable layout, …
 ngx-devextreme-zoneless/overlays   → [(dxVisible)] directives
-ngx-devextreme-zoneless/data       → grid/card-view/file-manager/form/scheduler/tree directives
+ngx-devextreme-zoneless/data       → grid/card-view/file-manager/form/scheduler/tree directives, axis + focus readers
 ngx-devextreme-zoneless/visualization → chart selection, range selector
 ngx-devextreme-zoneless/forms      → [dxFieldState] (Signal Forms; NOT re-exported by the main entry)
 ```

@@ -100,9 +100,9 @@ interface Order {
             [(dxSelectedRowKeys)]="selectedIds"
             [dataSource]="ordersSource"
             style="max-width:480px">
-            <dxo-selection mode="multiple" />
-            <dxi-column dataField="id" />
-            <dxi-column dataField="customer" />
+            <dxo-data-grid-selection mode="multiple" />
+            <dxi-data-grid-column dataField="id" />
+            <dxi-data-grid-column dataField="customer" />
         </dx-data-grid>
         <p>
             <span class="readout" data-testid="grid-readout">{{ selectedIds() | json }}</span>
@@ -120,10 +120,10 @@ interface Order {
             keyExpr="id"
             [focusedRowEnabled]="true"
             style="max-width:480px">
-            <dxo-paging [pageSize]="2" />
-            <dxo-pager [visible]="true" />
-            <dxi-column dataField="id" />
-            <dxi-column dataField="customer" />
+            <dxo-data-grid-paging [pageSize]="2" />
+            <dxo-data-grid-pager [visible]="true" />
+            <dxi-data-grid-column dataField="id" />
+            <dxi-data-grid-column dataField="customer" />
         </dx-data-grid>
         <p>
             <span class="readout" data-testid="page-readout">{{ pageIndex() }}</span>
@@ -134,9 +134,9 @@ interface Order {
 
         <h3>Form data</h3>
         <dx-form id="form-main" [(dxFormData)]="person" style="max-width:480px">
-            <dxi-item dataField="firstName" [editorOptions]="{ valueChangeEvent: 'input' }" />
-            <dxi-item dataField="lastName" [editorOptions]="{ valueChangeEvent: 'input' }" />
-            <dxi-item dataField="address.city" [editorOptions]="{ valueChangeEvent: 'input' }" />
+            <dxi-form-item dataField="firstName" [editorOptions]="{ valueChangeEvent: 'input' }" />
+            <dxi-form-item dataField="lastName" [editorOptions]="{ valueChangeEvent: 'input' }" />
+            <dxi-form-item dataField="address.city" [editorOptions]="{ valueChangeEvent: 'input' }" />
         </dx-form>
         <p>
             <span class="readout" data-testid="form-readout">{{ person() | json }}</span>
@@ -152,9 +152,9 @@ interface Order {
             [dataSource]="orders()"
             keyExpr="id"
             style="max-width:480px">
-            <dxo-search-panel [visible]="true" />
-            <dxi-column dataField="id" />
-            <dxi-column dataField="customer" />
+            <dxo-data-grid-search-panel [visible]="true" />
+            <dxi-data-grid-column dataField="id" />
+            <dxi-data-grid-column dataField="customer" />
         </dx-data-grid>
         <p>
             <span class="readout" data-testid="search-readout">{{ gridSearch() }}</span>
@@ -172,10 +172,10 @@ interface Order {
             [dataSource]="orders()"
             keyExpr="id"
             style="max-width:480px">
-            <dxo-search-panel [visible]="true" />
-            <dxo-paging [pageSize]="2" />
-            <dxi-column dataField="id" />
-            <dxi-column dataField="customer" />
+            <dxo-data-grid-search-panel [visible]="true" />
+            <dxo-data-grid-paging [pageSize]="2" />
+            <dxi-data-grid-column dataField="id" />
+            <dxi-data-grid-column dataField="customer" />
         </dx-data-grid>
         <p>
             <span class="readout" data-testid="state-page">{{ gridState() === undefined ? 'undefined' : (gridState() | json) }}</span>
@@ -219,7 +219,7 @@ interface Order {
             [(dxExpandedRowKeys)]="expandedKeys"
             [showBorders]="true"
             style="max-width:420px">
-            <dxi-column dataField="name" />
+            <dxi-tree-list-column dataField="name" />
         </dx-tree-list>
         <p>
             <span class="readout" data-testid="expand-readout">{{ expandedKeys() | json }}</span>
@@ -273,7 +273,7 @@ interface Order {
             [(dxSelectedPoints)]="points"
             [dataSource]="chartData"
             style="height:220px; max-width:480px">
-            <dxi-series valueField="amount" argumentField="month" type="bar" />
+            <dxi-chart-series valueField="amount" argumentField="month" type="bar" />
         </dx-chart>
         <p>
             <span class="readout" data-testid="chart-readout">{{ points() | json }}</span>
@@ -303,8 +303,8 @@ interface Order {
             <span class="readout" data-testid="remote-load-count">loads: {{ remoteLoadCount() }}</span>
         </div>
         <dx-data-grid id="grid-remote" [dataSource]="remoteSource" style="max-width:480px">
-            <dxi-column dataField="id" />
-            <dxi-column dataField="customer" />
+            <dxi-data-grid-column dataField="id" />
+            <dxi-data-grid-column dataField="customer" />
         </dx-data-grid>
 
         <h3>Widget re-creation</h3>

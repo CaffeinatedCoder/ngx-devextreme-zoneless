@@ -1,14 +1,14 @@
-import { Component, computed, signal } from '@angular/core';
+import { Component, computed, signal, viewChild } from '@angular/core';
 import { JsonPipe } from '@angular/common';
 import { DxAccordionModule } from 'devextreme-angular/ui/accordion';
 import { DxActionSheetModule } from 'devextreme-angular/ui/action-sheet';
 import { DxAutocompleteModule } from 'devextreme-angular/ui/autocomplete';
 import { DxButtonGroupModule } from 'devextreme-angular/ui/button-group';
-import { DxCardViewModule } from 'devextreme-angular/ui/card-view';
+import { DxCardViewComponent, DxCardViewModule } from 'devextreme-angular/ui/card-view';
 import { DxChartModule } from 'devextreme-angular/ui/chart';
 import { DxChatModule } from 'devextreme-angular/ui/chat';
 import { DxContextMenuModule } from 'devextreme-angular/ui/context-menu';
-import { DxDataGridModule } from 'devextreme-angular/ui/data-grid';
+import { DxDataGridComponent, DxDataGridModule } from 'devextreme-angular/ui/data-grid';
 import { DxDateBoxModule } from 'devextreme-angular/ui/date-box';
 import { DxDropDownButtonModule } from 'devextreme-angular/ui/drop-down-button';
 import { DxCalendarModule } from 'devextreme-angular/ui/calendar';
@@ -62,9 +62,14 @@ import {
     type DxRangeSelectorValue,
     type DxResizableSize,
     type DxSchedulerView,
+    dxFocusedCardSignal,
+    dxFocusedCellSignal,
+    dxGridColumns,
+    dxGridRows,
 } from 'ngx-devextreme-zoneless';
 
 type Status = 'Pending' | 'Shipped' | 'Delivered';
+type GridRow = { id: number; customer: string };
 
 /** Local calendar date, so the readout does not shift with the time zone. */
 function showDate(value: DxDateValue | readonly DxDateValue[] | null | undefined): string {
@@ -311,8 +316,8 @@ function showDate(value: DxDateValue | readonly DxDateValue[] | null | undefined
             <button data-testid="cov-gantt-set" (click)="ganttKey.set(1)">select Plan</button>
         </div>
         <dx-gantt id="cov-gantt" [(dxSelectedRowKey)]="ganttKey" [height]="200" [taskListWidth]="220" scaleType="days" style="max-width:640px">
-            <dxo-tasks [dataSource]="ganttTasks" />
-            <dxi-column dataField="title" caption="Task" />
+            <dxo-gantt-tasks [dataSource]="ganttTasks" />
+            <dxi-gantt-column dataField="title" caption="Task" />
         </dx-gantt>
         <div class="row">
             <span class="readout" data-testid="cov-scheduler-date-readout">{{ showDate(schedulerDate()) }}</span>
@@ -337,14 +342,14 @@ function showDate(value: DxDateValue | readonly DxDateValue[] | null | undefined
             <button data-testid="cov-pie-set" (click)="piePoints.set([{ argument: 'B', value: 10 }])">select B</button>
         </div>
         <dx-pie-chart id="cov-pie" [(dxSelectedPoints)]="piePoints" [dataSource]="pieData" pointSelectionMode="multiple" style="height:220px; max-width:320px">
-            <dxi-series argumentField="slice" valueField="share" />
+            <dxi-pie-chart-series argumentField="slice" valueField="share" />
         </dx-pie-chart>
         <div class="row">
             <span class="readout" data-testid="cov-rangesel-readout">{{ selectorRange() | json }}</span>
             <button data-testid="cov-rangesel-set" (click)="selectorRange.set([10, 50])">set 10–50</button>
         </div>
         <dx-range-selector id="cov-rangesel" [(dxValue)]="selectorRange" style="height:120px; max-width:400px">
-            <dxo-scale [startValue]="0" [endValue]="100" />
+            <dxo-range-selector-scale [startValue]="0" [endValue]="100" />
         </dx-range-selector>
 
         <h3>Drop-down open state</h3>
@@ -399,18 +404,97 @@ function showDate(value: DxDateValue | readonly DxDateValue[] | null | undefined
             <button data-testid="nb-grid-batch-clear" (click)="gridChanges.set([])">discard</button>
         </div>
         <dx-data-grid id="nb-grid-batch" [(dxEditingChanges)]="gridChanges" [dataSource]="rows" keyExpr="id" [showBorders]="true" style="max-width:420px">
-            <dxo-editing mode="batch" [allowUpdating]="true" />
-            <dxi-column dataField="id" [allowEditing]="false" [width]="60" />
-            <dxi-column dataField="customer" />
+            <dxo-data-grid-editing mode="batch" [allowUpdating]="true" />
+            <dxi-data-grid-column dataField="id" [allowEditing]="false" [width]="60" />
+            <dxi-data-grid-column dataField="customer" />
         </dx-data-grid>
+
+        <h4>Batch editing with summaries</h4>
+        <div class="row">
+            <span class="readout" data-testid="nb-grid-sum-readout">{{ sumChanges() | json }}</span>
+            <button data-testid="nb-grid-sum-set" (click)="sumChanges.set([{ type: 'update', key: 2, data: { amount: 200 } }])">raise Globex to 200</button>
+            <button data-testid="nb-grid-sum-clear" (click)="sumChanges.set([])">discard</button>
+        </div>
+        <dx-data-grid
+            id="nb-grid-sum"
+            [(dxEditingChanges)]="sumChanges"
+            [dataSource]="sumRows"
+            keyExpr="id"
+            [showBorders]="true"
+            style="max-width:420px"
+        >
+            <dxo-data-grid-editing mode="batch" [allowUpdating]="true" />
+            <dxi-data-grid-column dataField="id" [allowEditing]="false" [width]="60" />
+            <dxi-data-grid-column dataField="customer" [allowEditing]="false" />
+            <dxi-data-grid-column dataField="amount" dataType="number" />
+            <dxo-data-grid-summary [recalculateWhileEditing]="true">
+                <dxi-data-grid-total-item column="amount" summaryType="sum" />
+            </dxo-data-grid-summary>
+        </dx-data-grid>
+        <div class="row">
+            <span class="readout" data-testid="nb-grid-sum-off-readout">{{ sumOffChanges() | json }}</span>
+            <button data-testid="nb-grid-sum-off-set" (click)="sumOffChanges.set([{ type: 'update', key: 2, data: { amount: 200 } }])">raise Globex to 200</button>
+        </div>
+        <dx-data-grid
+            id="nb-grid-sum-off"
+            [(dxEditingChanges)]="sumOffChanges"
+            [dataSource]="sumRows"
+            keyExpr="id"
+            [showBorders]="true"
+            style="max-width:420px"
+        >
+            <dxo-data-grid-editing mode="batch" [allowUpdating]="true" />
+            <dxi-data-grid-column dataField="id" [allowEditing]="false" [width]="60" />
+            <dxi-data-grid-column dataField="amount" dataType="number" />
+            <dxo-data-grid-summary>
+                <dxi-data-grid-total-item column="amount" summaryType="sum" />
+            </dxo-data-grid-summary>
+        </dx-data-grid>
+
+        <h4>Complete axes under virtual rendering</h4>
+        <div class="row">
+            <span class="readout" data-testid="nb-axes-readout">{{ axes() | json }}</span>
+            <button data-testid="nb-axes-read" (click)="readAxes()">read axes</button>
+        </div>
+        <dx-data-grid
+            #axesGrid
+            id="nb-axes-grid"
+            [dataSource]="axesRows"
+            [columns]="axesColumnDefs"
+            keyExpr="id"
+            [showBorders]="true"
+            [height]="200"
+            [width]="420"
+        >
+            <dxo-data-grid-paging [enabled]="false" />
+            <dxo-data-grid-scrolling mode="standard" rowRenderingMode="virtual" columnRenderingMode="virtual" />
+        </dx-data-grid>
+
+        <h4>Focused cell and focused card</h4>
+        <div class="row">
+            <span class="readout" data-testid="nb-focus-cell-readout">{{ focusedCell() | json }}</span>
+            <span class="readout" data-testid="nb-focus-card-readout">{{ focusedCard() | json }}</span>
+        </div>
+        <dx-data-grid
+            #focusGrid
+            id="nb-focus-grid"
+            [dataSource]="rows"
+            keyExpr="id"
+            [showBorders]="true"
+            style="max-width:420px"
+        >
+            <dxi-data-grid-column dataField="id" [width]="60" />
+            <dxi-data-grid-column dataField="customer" />
+        </dx-data-grid>
+        <dx-card-view #focusCards id="nb-focus-cards" [dataSource]="rows" keyExpr="id" style="max-width:420px" />
         <div class="row">
             <span class="readout" data-testid="nb-treelist-batch-readout">{{ treeChanges() | json }}</span>
             <button data-testid="nb-treelist-batch-set" (click)="treeChanges.set([{ type: 'update', key: 2, data: { name: 'Changed' } }])">change Apple</button>
             <button data-testid="nb-treelist-batch-clear" (click)="treeChanges.set([])">discard</button>
         </div>
         <dx-tree-list id="nb-treelist-batch" [(dxEditingChanges)]="treeChanges" [dataSource]="treeRows" keyExpr="id" parentIdExpr="parentId" [autoExpandAll]="true" [showBorders]="true" style="max-width:420px">
-            <dxo-editing mode="batch" [allowUpdating]="true" />
-            <dxi-column dataField="name" />
+            <dxo-tree-list-editing mode="batch" [allowUpdating]="true" />
+            <dxi-tree-list-column dataField="name" />
         </dx-tree-list>
         <div class="row">
             <span class="readout" data-testid="nb-grid-row-readout">{{ gridEditKey() ?? 'null' }}</span>
@@ -418,8 +502,8 @@ function showDate(value: DxDateValue | readonly DxDateValue[] | null | undefined
             <button data-testid="nb-grid-row-cancel" (click)="gridEditKey.set(null)">cancel</button>
         </div>
         <dx-data-grid id="nb-grid-row" [(dxEditRowKey)]="gridEditKey" [dataSource]="rows" keyExpr="id" [showBorders]="true" style="max-width:420px">
-            <dxo-editing mode="row" [allowUpdating]="true" />
-            <dxi-column dataField="customer" />
+            <dxo-data-grid-editing mode="row" [allowUpdating]="true" />
+            <dxi-data-grid-column dataField="customer" />
         </dx-data-grid>
         <div class="row">
             <span class="readout" data-testid="nb-treelist-row-readout">{{ treeEditKey() ?? 'null' }}</span>
@@ -427,8 +511,8 @@ function showDate(value: DxDateValue | readonly DxDateValue[] | null | undefined
             <button data-testid="nb-treelist-row-cancel" (click)="treeEditKey.set(null)">cancel</button>
         </div>
         <dx-tree-list id="nb-treelist-row" [(dxEditRowKey)]="treeEditKey" [dataSource]="treeRows" keyExpr="id" parentIdExpr="parentId" [autoExpandAll]="true" [showBorders]="true" style="max-width:420px">
-            <dxo-editing mode="row" [allowUpdating]="true" />
-            <dxi-column dataField="name" />
+            <dxo-tree-list-editing mode="row" [allowUpdating]="true" />
+            <dxi-tree-list-column dataField="name" />
         </dx-tree-list>
 
         <h3>Deferred selection</h3>
@@ -437,8 +521,8 @@ function showDate(value: DxDateValue | readonly DxDateValue[] | null | undefined
             <button data-testid="nb-grid-deferred-set" (click)="selectionFilter.set(['id', '=', 2])">select Globex by filter</button>
         </div>
         <dx-data-grid id="nb-grid-deferred" [(dxSelectionFilter)]="selectionFilter" [dataSource]="rows" keyExpr="id" [showBorders]="true" style="max-width:420px">
-            <dxo-selection mode="multiple" [deferred]="true" showCheckBoxesMode="always" />
-            <dxi-column dataField="customer" />
+            <dxo-data-grid-selection mode="multiple" [deferred]="true" showCheckBoxesMode="always" />
+            <dxi-data-grid-column dataField="customer" />
         </dx-data-grid>
 
         <h3>Chart visual range</h3>
@@ -447,8 +531,8 @@ function showDate(value: DxDateValue | readonly DxDateValue[] | null | undefined
             <button data-testid="nb-chart-set" (click)="visualRange.set({ startValue: 3, endValue: 6 })">zoom to 3–6</button>
         </div>
         <dx-chart id="nb-chart" [(dxVisualRange)]="visualRange" [dataSource]="lineData" style="height:200px; max-width:480px">
-            <dxi-series argumentField="x" valueField="y" type="line" />
-            <dxo-zoom-and-pan argumentAxis="both" [allowMouseWheel]="true" />
+            <dxi-chart-series argumentField="x" valueField="y" type="line" />
+            <dxo-chart-zoom-and-pan argumentAxis="both" [allowMouseWheel]="true" />
         </dx-chart>
 
         <h3>Selection breadth</h3>
@@ -495,7 +579,7 @@ function showDate(value: DxDateValue | readonly DxDateValue[] | null | undefined
             <button data-testid="nb-polar-set" (click)="polarPoints.set([{ argument: 'E', value: 8 }])">select E</button>
         </div>
         <dx-polar-chart id="nb-polar" [(dxSelectedPoints)]="polarPoints" [dataSource]="polarData" pointSelectionMode="multiple" style="height:220px; max-width:320px">
-            <dxi-series argumentField="arg" valueField="val" type="line" />
+            <dxi-polar-chart-series argumentField="arg" valueField="val" type="line" />
         </dx-polar-chart>
 
         <h3>Editor state beyond value</h3>
@@ -540,14 +624,14 @@ function showDate(value: DxDateValue | readonly DxDateValue[] | null | undefined
             <button data-testid="nb-grid-focusidx-set" (click)="gridFocusedIndex.set(2)">focus third</button>
         </div>
         <dx-data-grid id="nb-grid-focusidx" [(dxFocusedRowIndex)]="gridFocusedIndex" [dataSource]="rows" keyExpr="id" [focusedRowEnabled]="true" [showBorders]="true" style="max-width:420px">
-            <dxi-column dataField="customer" />
+            <dxi-data-grid-column dataField="customer" />
         </dx-data-grid>
         <div class="row">
             <span class="readout" data-testid="nb-treelist-focusidx-readout">{{ treeFocusedIndex() }}</span>
             <button data-testid="nb-treelist-focusidx-set" (click)="treeFocusedIndex.set(2)">focus third</button>
         </div>
         <dx-tree-list id="nb-treelist-focusidx" [(dxFocusedRowIndex)]="treeFocusedIndex" [dataSource]="treeRows" keyExpr="id" parentIdExpr="parentId" [autoExpandAll]="true" [focusedRowEnabled]="true" [showBorders]="true" style="max-width:420px">
-            <dxi-column dataField="name" />
+            <dxi-tree-list-column dataField="name" />
         </dx-tree-list>
 
         <!--
@@ -592,8 +676,8 @@ function showDate(value: DxDateValue | readonly DxDateValue[] | null | undefined
             [focusedRowEnabled]="true"
             [showBorders]="true"
             style="max-width:480px">
-            <dxi-column dataField="id" [width]="70" />
-            <dxi-column dataField="name" />
+            <dxi-tree-list-column dataField="id" [width]="70" />
+            <dxi-tree-list-column dataField="name" />
         </dx-tree-list>
 
         <!--
@@ -615,7 +699,7 @@ function showDate(value: DxDateValue | readonly DxDateValue[] | null | undefined
             parentIdExpr="parentId"
             [showBorders]="true"
             style="max-width:480px">
-            <dxi-column dataField="name" />
+            <dxi-tree-list-column dataField="name" />
         </dx-tree-list>
 
         <!-- The two DataGrid bindings only the card view carried. -->
@@ -637,8 +721,8 @@ function showDate(value: DxDateValue | readonly DxDateValue[] | null | undefined
             [filterRow]="twFilterRow"
             [showBorders]="true"
             style="max-width:480px">
-            <dxi-column dataField="id" [width]="70" />
-            <dxi-column dataField="customer" />
+            <dxi-data-grid-column dataField="id" [width]="70" />
+            <dxi-data-grid-column dataField="customer" />
         </dx-data-grid>
 
         <h3>Card view</h3>
@@ -696,8 +780,8 @@ function showDate(value: DxDateValue | readonly DxDateValue[] | null | undefined
             <button data-testid="nb-chart-value-set" (click)="valueRange.set([2, 6])">zoom values to 2–6</button>
         </div>
         <dx-chart id="nb-chart-value" [(dxValueAxisVisualRange)]="valueRange" [dataSource]="lineData" style="height:200px; max-width:480px">
-            <dxi-series argumentField="x" valueField="y" type="line" />
-            <dxo-zoom-and-pan valueAxis="both" [allowMouseWheel]="true" />
+            <dxi-chart-series argumentField="x" valueField="y" type="line" />
+            <dxo-chart-zoom-and-pan valueAxis="both" [allowMouseWheel]="true" />
         </dx-chart>
 
         <h3>Templates under zoneless</h3>
@@ -816,6 +900,68 @@ export class CoverageComponent {
         { id: 2, parentId: 1, name: 'Apple' },
         { id: 3, parentId: 0, name: 'Vegetables' },
     ];
+    // Batch editing + summaries. `recalculateWhileEditing` is what makes pending
+    // edits reach the aggregates at all; the second grid leaves it at its default
+    // so the binding can be shown to add nothing where the widget adds nothing.
+    // 60 x 20, virtual *rendering* with paging off — not `scrolling.mode:
+    // 'virtual'`, which is virtual *paging*: that leaves only the first page
+    // loaded, so the complete axis really is 20 rows and the helper is right to
+    // say so (measured, and the reason this screen is configured this way). What
+    // the helpers are for is the other case: everything loaded, only the DOM
+    // windowed: measured here, 16 of the 60 rows and 6 of the 20 columns reach
+    // the DOM. 60 x 20 is enough for both axes to window without making
+    // `npm run ssr` render 7,000 cells.
+    readonly axesRows = Array.from({ length: 60 }, (_, row) => {
+        const entry: Record<string, number> = { id: row + 1 };
+        for (let column = 0; column < 20; column += 1) {
+            entry['f' + String(column)] = row * 20 + column;
+        }
+        return entry;
+    });
+    readonly axesColumnDefs = Array.from({ length: 20 }, (_, column) => ({
+        dataField: 'f' + String(column),
+        width: 100,
+    }));
+    readonly axes = signal<{
+        renderedRows: number;
+        completeRows: number;
+        renderedColumns: number;
+        completeColumns: number;
+    } | null>(null);
+    private readonly axesGrid = viewChild('axesGrid', { read: DxDataGridComponent });
+    private readonly focusGrid = viewChild('focusGrid', { read: DxDataGridComponent });
+    private readonly focusCards = viewChild('focusCards', { read: DxCardViewComponent });
+    readonly focusedCell = dxFocusedCellSignal<DxDataGridComponent<GridRow, number>, number>(
+        this.focusGrid,
+    );
+    readonly focusedCard = dxFocusedCardSignal<DxCardViewComponent<GridRow, number>, number>(
+        this.focusCards,
+    );
+
+    readAxes(): void {
+        const instance = this.axesGrid()?.instance;
+        if (instance === undefined) {
+            return;
+        }
+        this.axes.set({
+            renderedRows: instance.getVisibleRows().length,
+            completeRows: dxGridRows(instance).length,
+            renderedColumns: instance.getVisibleColumns().length,
+            completeColumns: dxGridColumns(instance).length,
+        });
+    }
+
+    readonly sumRows = [
+        { id: 1, customer: 'Acme', amount: 10 },
+        { id: 2, customer: 'Globex', amount: 20 },
+        { id: 3, customer: 'Initech', amount: 30 },
+    ];
+    readonly sumChanges = signal<
+        readonly DxDataChange<{ id: number; customer: string; amount: number }, number>[]
+    >([]);
+    readonly sumOffChanges = signal<
+        readonly DxDataChange<{ id: number; customer: string; amount: number }, number>[]
+    >([]);
     readonly gridChanges = signal<readonly DxDataChange<{ id: number; customer: string }, number>[]>([]);
     readonly treeChanges = signal<readonly DxDataChange<{ id: number; name: string }, number>[]>([]);
     readonly gridEditKey = signal<number | null>(null);
