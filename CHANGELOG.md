@@ -7,8 +7,8 @@
 - **`dxGridRows` / `dxGridColumns` — a grid's complete row and column axes, in
   display order** (`ngx-devextreme-zoneless/data`). Both of DevExtreme's public
   readers are windowed under virtual rendering: measured on a 60 × 20 grid,
-  `getVisibleRows()` answers about 10 of the 60 rows and `getVisibleColumns()`
-  about 5 of the 20, and the windowed column list carries virtual spacer entries
+  `getVisibleRows()` answers 16 of the 60 rows and `getVisibleColumns()`
+  6 of the 20, and the windowed column list carries virtual spacer entries
   at its ends. Anything that works past the edge of the screen — a range
   selection, a fill handle, an export of what the user sees — cannot be built on
   them. Both take a `dx-data-grid` or `dx-tree-list` instance and infer that
@@ -30,17 +30,20 @@
   them, and `totalItemsCount()` changing controllers broke exactly one test
   helper and no shipped code.
 
-- **The documentation's examples no longer use DevExtreme's deprecated nested
-  configuration components.** `<dxo-selection>`, `<dxo-zoom-and-pan>` and
-  `<dxi-value-axis>` in the README and `docs/directives.md` are now
-  `<dxo-data-grid-selection>`, `<dxo-chart-zoom-and-pan>` and
-  `<dxi-chart-value-axis>`, and all 91 occurrences on the reference screens the
-  examples are written from moved with them. `W3001` is
-  `LEGACY_CONFIG_COMPONENT_USED`: copying an example from this package was
-  handing you a spelling the vendor asks you to stop using. Nothing about the
-  bindings changed — the named components are the same generated classes, and
-  every widget module already exported them, so no import of yours has to
-  change either.
+- **Every example in this package, and the library's own TSDoc, is off
+  DevExtreme's deprecated nested configuration components.** `W3001` is
+  `LEGACY_CONFIG_COMPONENT_USED`, so copying an example from here was handing you
+  a spelling the vendor asks you to stop using — and the TSDoc ships in
+  `dist/types`, which is where you read it on hover. 91 occurrences on the
+  reference screens the documentation's examples are written from, 13 more in the
+  entry points' own TSDoc and in `examples/order-dashboard.component.ts`, and
+  five in `README.md` and `docs/directives.md`: `<dxo-selection>` is now
+  `<dxo-data-grid-selection>`, `<dxi-column>` is `<dxi-data-grid-column>` or
+  `<dxi-tree-list-column>` depending on the widget it sits in, and so on.
+  Nothing about the bindings changed — the named components are the same
+  generated classes and every widget module already exported them, so no import
+  of yours has to change. Measured: `W3001` is now 0 across all six screens, and
+  `/coverage` renders byte-identical HTML in Node.
 
 ### Fixed
 
