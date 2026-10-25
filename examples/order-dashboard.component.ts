@@ -83,11 +83,11 @@ type OrderStatus = 'Pending' | 'Shipped' | 'Delivered' | 'Cancelled';
             [(dxSelectedRowKeys)]="selectedOrderIds"
             [dataSource]="filteredOrders()"
             keyExpr="id">
-            <dxo-selection mode="multiple" />
-            <dxi-column dataField="id" />
-            <dxi-column dataField="customer" />
-            <dxi-column dataField="amount" format="currency" />
-            <dxi-column dataField="status" />
+            <dxo-data-grid-selection mode="multiple" />
+            <dxi-data-grid-column dataField="id" />
+            <dxi-data-grid-column dataField="customer" />
+            <dxi-data-grid-column dataField="amount" format="currency" />
+            <dxi-data-grid-column dataField="status" />
         </dx-data-grid>
 
         <p>Selected: {{ selectedOrderIds() | json }}</p>
@@ -96,7 +96,7 @@ type OrderStatus = 'Pending' | 'Shipped' | 'Delivered' | 'Cancelled';
             pointSelectionMode="multiple"
             [(dxSelectedPoints)]="chartSelection"
             [dataSource]="chartData">
-            <dxi-series valueField="amount" argumentField="month" />
+            <dxi-chart-series valueField="amount" argumentField="month" />
         </dx-chart>
 
         <p>Chart selection: {{ chartSelection() | json }}</p>

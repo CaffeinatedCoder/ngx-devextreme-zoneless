@@ -445,7 +445,7 @@ function searchPanelTextAdapter(): DxBindingAdapter<DxWidget & GridSearchLike, s
  *
  * ```html
  * <dx-data-grid [(dxSearchPanelText)]="search" [dxSearchPanelTextDebounce]="300">
- *   <dxo-search-panel [visible]="true" />
+ *   <dxo-data-grid-search-panel [visible]="true" />
  * </dx-data-grid>
  * ```
  *
@@ -812,7 +812,7 @@ function gridEditRowKeyAdapter<TKey>(): DxBindingAdapter<DxWidget, TKey | null> 
  *
  * ```html
  * <dx-data-grid [(dxEditingChanges)]="changes" [dataSource]="rows" keyExpr="id">
- *   <dxo-editing mode="batch" [allowUpdating]="true" />
+ *   <dxo-data-grid-editing mode="batch" [allowUpdating]="true" />
  * </dx-data-grid>
  * ```
  *
@@ -909,7 +909,7 @@ export class DxTreeListEditRowKeyDirective<
 
 /**
  * `[(dxSelectionFilter)]` for `dx-data-grid` — deferred selection as a
- * signal. With `<dxo-selection mode="multiple" [deferred]="true" />` the grid
+ * signal. With `<dxo-tree-list-selection mode="multiple" [deferred]="true" />` the grid
  * keeps no key array at all; it keeps a *filter expression* describing the
  * selected rows, which is what makes "select all" on a remote data source
  * scale, and what a server can apply directly. This is the remote-scale

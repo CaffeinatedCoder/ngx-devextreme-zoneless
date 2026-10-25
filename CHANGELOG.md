@@ -17,17 +17,6 @@
   complete for the page. Two limits are documented rather than hidden:
   "complete" means *loaded*, not the whole dataset, and `dxGridColumns` answers
   `[]` while `stateStoring` is still loading.
-- **`dxFocusedCellSignal` / `dxFocusedCardSignal` — the focused cell of a grid
-  and the focused card of a CardView, as read-only signals**
-  (`ngx-devextreme-zoneless/data`). The value is `{ rowKey, columnField }` —
-  named rather than numbered, because under column virtualization the event's
-  `columnIndex` is window-relative and counts the virtual spacers while the
-  `focusedColumnIndex` option is absolute. These are readers rather than
-  bindings: the widget owns the state and a write moves nothing, which is the
-  same reason this package has never shipped a `focusedColumnIndex` directive.
-  The widget also never reports losing focus, so the signal keeps the last
-  focused cell after the user tabs away; `docs/composition-api.md` says what to
-  do if you need "nothing is focused".
 
 ### Changed
 

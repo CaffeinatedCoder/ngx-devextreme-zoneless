@@ -40,16 +40,12 @@ import type {
     DxDataChange,
     DxResizableSize,
     DxGridAxes,
-    DxFocusedCell,
-    DxFocusedCard,
 } from 'ngx-devextreme-zoneless';
 import type DataSource from 'devextreme/data/data_source';
 import {
     bindDxOption,
     dxArrayStoreSource,
     dxEventSignal,
-    dxFocusedCardSignal,
-    dxFocusedCellSignal,
     dxGridColumns,
     dxGridRows,
     dxInstanceSignal,
@@ -213,24 +209,12 @@ declare const gridInstance_: DxInstanceOf<Grid>;
 expectType<(text: string) => void>(gridInstance_.searchByText);
 expectType<number>(gridInstance_.pageIndex());
 
-/* The read-only focus signals cast their event name — a generic host cannot have
- * it checked at the declaration site — so each name needs a positive control
- * here. `dx-card-view` carries the *other* name on purpose: it has no
- * focused-card option at all, only this event, which is why it has no entry in
- * the directive tables. */
-const gridFocusedCellEvent: DxHostEventName<Grid> = 'focusedCellChanged';
-const treeListFocusedCellEvent: DxHostEventName<TreeList> = 'focusedCellChanged';
-const cardViewFocusedCardEvent: DxHostEventName<CardView> = 'focusedCardChanged';
-// @ts-expect-error — a card is not a cell; dx-card-view has no focusedCellChanged
-const cardViewFocusedCellEvent: DxHostEventName<CardView> = 'focusedCellChanged';
-
 /* `dxGridRows`/`dxGridColumns` are structural over both grids, so each widget's
  * own Row and Column types are inferred from its own declarations rather than
  * named here — and `dx-card-view` must *not* match: it has `getVisibleCards()`,
  * is not built on grid_core, and has no row or column virtualization. */
 declare function acceptsGridAxes<TRow, TColumn>(instance: DxGridAxes<TRow, TColumn>): void;
 declare const treeListInstance_: DxInstanceOf<TreeList>;
-declare const cardView: DxCardViewComponent<{ id: number }, number>;
 acceptsGridAxes(gridInstance_);
 acceptsGridAxes(treeListInstance_);
 // @ts-expect-error — dx-card-view exposes getVisibleCards(), not getVisibleRows()
@@ -239,17 +223,6 @@ expectType<string | undefined>(dxGridRows(gridInstance_)[0]?.rowType);
 expectType<number | undefined>(dxGridRows(gridInstance_)[0]?.key);
 expectType<string | undefined>(dxGridColumns(gridInstance_)[0]?.dataField);
 
-inInjectionContext(() => {
-    const focusedCell: DxFocusedCell<number> | undefined = dxFocusedCellSignal<Grid, number>(
-        () => grid,
-    )();
-    expectType<number | undefined>(focusedCell?.rowKey);
-    expectType<string | undefined>(focusedCell?.columnField);
-    const focusedCard: DxFocusedCard<number> | undefined = dxFocusedCardSignal<CardView, number>(
-        () => cardView,
-    )();
-    expectType<number | undefined>(focusedCard?.cardKey);
-});
 
 /* ------------------------------------------------------------------------ *
  * bindDxOption links option name and signal type

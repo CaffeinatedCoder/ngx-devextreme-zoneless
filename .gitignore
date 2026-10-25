@@ -10,3 +10,7 @@ out-tsc/
 .claude/settings.local.json
 playwright-report/
 test-results/
+
+# Agent-local scratch: notes a review or probe agent keeps between runs on this
+# machine. The directory name says local; nothing in it is product.
+.claude/agent-memory-local/

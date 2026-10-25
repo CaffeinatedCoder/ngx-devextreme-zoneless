@@ -96,7 +96,7 @@ each write, so the signal converges to the level the calendar actually shows.
 the grids' core: every one of its two-way states is a real option write and it
 fires `contentReady` after every load, so the grid bases apply unchanged.
 CardView has no focused-card *option* (only an `onFocusedCardChanged` event), so
-there is no focus binding for it — `dxFocusedCardSignal` reads that event.
+there is no focus binding for it.
 
 `[(dxFocusedRowIndex)]` is the render-relative counterpart of
 `[(dxFocusedRowKey)]`: prefer the key where identity across reloads matters.
@@ -105,9 +105,7 @@ click and arrow key, but pre-positions silently during virtual-scroll
 navigation and resets it through a data operation when paging invalidates the
 focused key, hence the family's `contentReady` re-read. `focusedColumnIndex`
 has no directive on purpose: its change handler is a no-op marker, so a write
-would move nothing — read it with `dxOptionSignal`, or read the focused cell as
-a whole with `dxFocusedCellSignal`, which names the column instead of numbering
-it (the event's index is window-relative under column virtualization).
+would move nothing — read it with `dxOptionSignal`.
 
 `[(dxEditingChanges)]` and `[(dxEditRowKey)]` put the grids' editing state on
 signals — the state DevExtreme designed for external ownership (it is how the

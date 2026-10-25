@@ -4,7 +4,7 @@ import { DxAccordionModule } from 'devextreme-angular/ui/accordion';
 import { DxActionSheetModule } from 'devextreme-angular/ui/action-sheet';
 import { DxAutocompleteModule } from 'devextreme-angular/ui/autocomplete';
 import { DxButtonGroupModule } from 'devextreme-angular/ui/button-group';
-import { DxCardViewComponent, DxCardViewModule } from 'devextreme-angular/ui/card-view';
+import { DxCardViewModule } from 'devextreme-angular/ui/card-view';
 import { DxChartModule } from 'devextreme-angular/ui/chart';
 import { DxChatModule } from 'devextreme-angular/ui/chat';
 import { DxContextMenuModule } from 'devextreme-angular/ui/context-menu';
@@ -62,14 +62,11 @@ import {
     type DxRangeSelectorValue,
     type DxResizableSize,
     type DxSchedulerView,
-    dxFocusedCardSignal,
-    dxFocusedCellSignal,
     dxGridColumns,
     dxGridRows,
 } from 'ngx-devextreme-zoneless';
 
 type Status = 'Pending' | 'Shipped' | 'Delivered';
-type GridRow = { id: number; customer: string };
 
 /** Local calendar date, so the readout does not shift with the time zone. */
 function showDate(value: DxDateValue | readonly DxDateValue[] | null | undefined): string {
@@ -470,23 +467,6 @@ function showDate(value: DxDateValue | readonly DxDateValue[] | null | undefined
             <dxo-data-grid-scrolling mode="standard" rowRenderingMode="virtual" columnRenderingMode="virtual" />
         </dx-data-grid>
 
-        <h4>Focused cell and focused card</h4>
-        <div class="row">
-            <span class="readout" data-testid="nb-focus-cell-readout">{{ focusedCell() | json }}</span>
-            <span class="readout" data-testid="nb-focus-card-readout">{{ focusedCard() | json }}</span>
-        </div>
-        <dx-data-grid
-            #focusGrid
-            id="nb-focus-grid"
-            [dataSource]="rows"
-            keyExpr="id"
-            [showBorders]="true"
-            style="max-width:420px"
-        >
-            <dxi-data-grid-column dataField="id" [width]="60" />
-            <dxi-data-grid-column dataField="customer" />
-        </dx-data-grid>
-        <dx-card-view #focusCards id="nb-focus-cards" [dataSource]="rows" keyExpr="id" style="max-width:420px" />
         <div class="row">
             <span class="readout" data-testid="nb-treelist-batch-readout">{{ treeChanges() | json }}</span>
             <button data-testid="nb-treelist-batch-set" (click)="treeChanges.set([{ type: 'update', key: 2, data: { name: 'Changed' } }])">change Apple</button>
@@ -929,15 +909,6 @@ export class CoverageComponent {
         completeColumns: number;
     } | null>(null);
     private readonly axesGrid = viewChild('axesGrid', { read: DxDataGridComponent });
-    private readonly focusGrid = viewChild('focusGrid', { read: DxDataGridComponent });
-    private readonly focusCards = viewChild('focusCards', { read: DxCardViewComponent });
-    readonly focusedCell = dxFocusedCellSignal<DxDataGridComponent<GridRow, number>, number>(
-        this.focusGrid,
-    );
-    readonly focusedCard = dxFocusedCardSignal<DxCardViewComponent<GridRow, number>, number>(
-        this.focusCards,
-    );
-
     readAxes(): void {
         const instance = this.axesGrid()?.instance;
         if (instance === undefined) {

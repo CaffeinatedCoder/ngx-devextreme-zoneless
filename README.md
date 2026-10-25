@@ -138,7 +138,7 @@ ngx-devextreme-zoneless/data-source → dxArrayStoreSource, dxReloadOn, dxRemote
 ngx-devextreme-zoneless/editors    → [(dxValue)], [(dxOpened)], [(dxZoomLevel)], [(dxInputFieldText)]
 ngx-devextreme-zoneless/navigation → [(dxSelectedIndex)], [(dxOpened)], splitter and resizable layout, …
 ngx-devextreme-zoneless/overlays   → [(dxVisible)] directives
-ngx-devextreme-zoneless/data       → grid/card-view/file-manager/form/scheduler/tree directives, axis + focus readers
+ngx-devextreme-zoneless/data       → grid/card-view/file-manager/form/scheduler/tree directives, axis readers
 ngx-devextreme-zoneless/visualization → chart selection, range selector
 ngx-devextreme-zoneless/forms      → [dxFieldState] (Signal Forms; NOT re-exported by the main entry)
 ```

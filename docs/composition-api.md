@@ -94,10 +94,9 @@ readonly disabled = dxOptionSignal(this.menu, 'disabled');
 
 ## Readers for state the widget will not give back
 
-Three helpers in `ngx-devextreme-zoneless/data` are not bindings at all. They
-read state DevExtreme either windows or never reports, and nothing is pushed
-back — a write would move nothing, which is also why there is no
-`[(dxFocusedCell)]` directive and never was a `focusedColumnIndex` one.
+Two helpers in `ngx-devextreme-zoneless/data` are not bindings at all. They read
+state DevExtreme windows away, and nothing is pushed back — there is no widget
+option to write.
 
 ### The complete row and column axes
 
@@ -151,35 +150,6 @@ public: `getKeyByRowIndex(i, true)` answers for loaded-but-unrendered rows. The
 undeclared second argument reaches the controller because public methods are
 registered as argument-forwarding wrappers, and the vendor calls it that way
 itself.
-
-### The focused cell, and the focused card
-
-```ts
-import { dxFocusedCellSignal } from 'ngx-devextreme-zoneless/data';
-
-private readonly grid = viewChild('grid', { read: DxDataGridComponent });
-readonly focused = dxFocusedCellSignal<DxDataGridComponent<Order, number>, number>(this.grid);
-// → { rowKey: 7, columnField: 'amount' } | undefined
-```
-
-The column is **named, not numbered**, on purpose: under column virtualization
-the event's `columnIndex` is window-relative and counts the virtual spacers
-while the `focusedColumnIndex` option is absolute — measured as index 4 against
-dataField `f33` and option value `33`. A command column reports its `type`
-(`selection`, `buttons`, …), having neither `dataField` nor `name`, and a group
-row's `rowKey` is the group *path* array.
-
-**The widget never reports losing focus.** The event has a single call site,
-guarded on a real column index; the internal reset fires nothing and the focus
-indices go stale rather than to `-1`. So the signal keeps the last focused cell
-after the user tabs away, and "nothing is focused" is not derivable from the
-widget — watch `focusout` yourself if you need it. Re-clicking the same cell is
-silent (the vendor memoizes by value), entering edit on a cell is silent, and
-`keyboardNavigation.enabled: false` emits nothing at all.
-
-`dxFocusedCardSignal` is the CardView counterpart, over `focusedCardChanged` —
-the only focus surface that widget has, which is why it appears in no directive
-table.
 
 ## Custom adapters
 

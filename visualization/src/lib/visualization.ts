@@ -226,7 +226,7 @@ export type DxChartVisualRange = NonNullable<
  *
  * ```html
  * <dx-chart [(dxVisualRange)]="window" [dataSource]="data">
- *   <dxo-zoom-and-pan argumentAxis="both" [allowMouseWheel]="true" />
+ *   <dxo-chart-zoom-and-pan argumentAxis="both" [allowMouseWheel]="true" />
  * </dx-chart>
  * ```
  *
@@ -289,7 +289,7 @@ export type DxChartValueAxisVisualRange = NonNullable<DxChartValueAxis['visualRa
 /**
  * The option path of the first value axis' visual range. `valueAxis` is
  * declared `ValueAxis | ValueAxis[]` — a single `<dxo-value-axis>` versus
- * `<dxi-value-axis>` children — and the chart's own write-back branches on
+ * `<dxi-chart-value-axis>` children — and the chart's own write-back branches on
  * exactly that (`_notifyVisualRange` writes `valueAxis.visualRange` or
  * `valueAxis[0].visualRange`, verified against 26.1.4), so the adapter reads
  * and writes through the same path the chart uses.
@@ -307,7 +307,7 @@ function valueAxisVisualRangePath(instance: { option(name: string): unknown }): 
  *
  * ```html
  * <dx-chart [(dxValueAxisVisualRange)]="window" [dataSource]="data">
- *   <dxo-zoom-and-pan valueAxis="both" [allowMouseWheel]="true" />
+ *   <dxo-chart-zoom-and-pan valueAxis="both" [allowMouseWheel]="true" />
  * </dx-chart>
  * ```
  *

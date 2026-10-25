@@ -387,34 +387,3 @@ test.describe('dxGridRows / dxGridColumns under virtual rendering', () => {
         expect(axes.renderedColumns).toBeLessThan(axes.completeColumns);
     });
 });
-
-test.describe('dxFocusedCellSignal / dxFocusedCardSignal', () => {
-    const focusCell = (page: Page): Promise<void> =>
-        page
-            .locator('#nb-focus-grid .dx-data-row', { hasText: 'Acme' })
-            .locator('td')
-            .nth(1)
-            .click();
-
-    test('widget → signal: a click names the row key and the column field', async ({ page }) => {
-        await focusCell(page);
-        await expect(readout(page, 'nb-focus-cell-readout')).toContainText(
-            '"columnField": "customer"',
-        );
-        await expect(readout(page, 'nb-focus-cell-readout')).toContainText('"rowKey": 1');
-    });
-
-    test('widget → signal: an arrow key moves it, so keyboard focus is reported too', async ({
-        page,
-    }) => {
-        await focusCell(page);
-        await expect(readout(page, 'nb-focus-cell-readout')).toContainText('"rowKey": 1');
-        await page.keyboard.press('ArrowDown');
-        await expect(readout(page, 'nb-focus-cell-readout')).toContainText('"rowKey": 2');
-    });
-
-    test('widget → signal: a card view reports its focused card', async ({ page }) => {
-        await page.locator('#nb-focus-cards .dx-cardview-card').nth(1).click();
-        await expect(readout(page, 'nb-focus-card-readout')).toContainText('"cardKey": 2');
-    });
-});

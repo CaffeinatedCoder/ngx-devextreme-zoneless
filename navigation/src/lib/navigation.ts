@@ -256,8 +256,8 @@ function splitterItems(instance: { option(name: string): unknown }): readonly Sp
  *
  * ```html
  * <dx-splitter [(dxItemSizes)]="sizes" [(dxCollapsedItems)]="collapsed">
- *   <dxi-item text="left" [collapsible]="true" />
- *   <dxi-item text="right" />
+ *   <dxi-splitter-item text="left" [collapsible]="true" />
+ *   <dxi-splitter-item text="right" />
  * </dx-splitter>
  * ```
  *
