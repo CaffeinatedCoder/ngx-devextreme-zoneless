@@ -484,9 +484,15 @@ test.describe('wire protocol conformance', () => {
 });
 
 test.describe('remote grouping and summaries', () => {
-    // `groupCount` never reaches the pager — that reads a different total.
-    // It reaches the data controller's row count, which is where the grid
-    // computes `totalItemsCount - totalCount + groupCount`.
+    // `groupCount` never reaches the pager — that reads a different total. It
+    // reaches the grid's row count, where the grid computes
+    // `totalItemsCount - totalCount + groupCount`
+    // (`data_grid/grouping/m_grouping_collapsed.js:351`, still so in 26.1.6).
+    // The *reader* moved in 26.1.6: `totalItemsCount()` left the `data`
+    // controller for the `dataSource` one
+    // (`grid_core/data_source/data_source_controller.js:147`). That is a vendor
+    // internal this helper reaches into deliberately, and the loud throw when it
+    // moves again is the signal we want — hence one controller name, no fallback.
     const groupedTotalItemsCount = (page: Page): Promise<number> =>
         page.evaluate(() => {
             const element = document.querySelector('#grid-grouped') as HTMLElement;
@@ -499,7 +505,7 @@ test.describe('remote grouping and summaries', () => {
                     };
                 }
             ).ng;
-            return ng.getComponent(element).instance.getController('data').totalItemsCount();
+            return ng.getComponent(element).instance.getController('dataSource').totalItemsCount();
         });
     const groupRequests = (stats: StubStats): readonly StubLoadEntry[] =>
         stats.history.filter((entry) => entry.path === '/api/grouped-orders' && entry['group'] !== undefined);

@@ -254,8 +254,9 @@ a moved block leaves a pointer, never a copy.
   Pinned by `npm run ssr`
 - **A TreeList is not a DataGrid with a parent id — its scrolling and paging defaults differ.**
   `scrolling.mode` defaults to `'virtual'` on a TreeList and `'standard'` on a DataGrid
-  (`tree_list/m_virtual_scrolling.js`), and `paging.enabled` defaults to `false` where the grid's is
-  `true` (`tree_list/data_controller/m_data_controller.js`). Two consequences bit a coverage screen
+  (`tree_list/m_virtual_scrolling.js:59`), and `paging.enabled` defaults to `false` where the grid's
+  is `true` (`tree_list/data_controller/data_controller.js:186` — the vendor dropped this file's
+  `m_` prefix in 26.1.6; both defaults re-verified there). Two consequences bit a coverage screen
   in 4.0: a visible pager over unpaged data looks like a working one until you click it, and
   grid_core's `applyState` forces `paging.pageIndex` back to 0 whenever the mode is virtual and the
   rows view has no height (`grid_core/state_storing/m_state_storing.js`), so a `[(dxGridState)]`

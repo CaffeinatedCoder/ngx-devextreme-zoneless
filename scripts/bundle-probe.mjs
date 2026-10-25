@@ -21,7 +21,7 @@
  * Run after `npm run build`:  node scripts/bundle-probe.mjs
  */
 import { execSync } from 'node:child_process';
-import { readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 
 // ---- 1. static: runtime wrapper imports in the built entry points ----------
 const fesmDir = 'dist/fesm2022';
@@ -64,7 +64,18 @@ if (dataLayerImports.length > 0) {
 // Runs even after a static hit, so one red run shows what the import costs.
 execSync('npx ng build probe', { stdio: 'inherit' });
 
-const metafile = JSON.parse(readFileSync('dist-probe/stats.json', 'utf8'));
+// `@angular/build` 22.2 renamed the metafile `statsJson: true` writes from
+// `stats.json` to `browser-stats.json`; on 22.1 the old name is the only one.
+// Missing both is a hard error, never a silent pass — a probe that cannot read
+// the build it just made must say so.
+const statsPath = ['dist-probe/browser-stats.json', 'dist-probe/stats.json'].find(existsSync);
+if (statsPath === undefined) {
+    console.error('Bundle probe: `ng build probe` wrote no metafile — looked for');
+    console.error('  dist-probe/browser-stats.json (@angular/build >= 22.2)');
+    console.error('  dist-probe/stats.json         (@angular/build 22.1)');
+    process.exit(1);
+}
+const metafile = JSON.parse(readFileSync(statsPath, 'utf8'));
 const outputs = metafile.outputs ?? {};
 const normalize = (path) => path.replace(/\\/g, '/');
 
