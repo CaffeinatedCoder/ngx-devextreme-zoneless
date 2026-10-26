@@ -117,8 +117,9 @@ on issues and pull requests alike.
 
 ## Changelog
 
-A version's section of [CHANGELOG.md](CHANGELOG.md) is the GitHub release's notes, so it is written
-for someone deciding whether to upgrade.
+A version's section of [CHANGELOG.md](CHANGELOG.md) is the full record of that release, written for
+someone deciding whether to upgrade. The GitHub release is a condensed read of it, not a copy
+([below](#the-github-release)).
 
 - **The heading** is `## x.y.z (yyyy-mm-dd)`. Write entries under the version being prepared, never
   under `Unreleased`; the first PR of a new version opens its section.
@@ -141,6 +142,27 @@ for someone deciding whether to upgrade.
   release page.
 - **Leave out** test names, internal refactoring with no observable effect, and fixes to something
   introduced in the same release.
+
+### The GitHub release
+
+**Creating it is a manual step.** The release workflow publishes to npm on a `v*` tag and does
+nothing else, so a tag plus a published package is not a release — 4.0.0 and 4.1.0 were on npm for
+weeks with no release page behind them. Its body is a condensed read of the version's changelog
+section, in the shape v3.0.0 set:
+
+- A lede of two to four lines: what this release is for someone who has to decide.
+- An `npm i ngx-devextreme-zoneless@x.y.z` block.
+- The consumer-facing sections, promoted to `##`: `Breaking changes`, `Added`, `Changed`, `Fixed`,
+  and `Tests` as prose rather than bullets. Leave out the sections that describe the project rather
+  than the upgrade — `Verified`, `Docs`, `Removed` — and condense what you keep: v3.0.0's release
+  body is 89 lines over its section's 309, keeping 20 of 31 entries.
+- A closing line pointing at `CHANGELOG.md` for the measurements behind each claim.
+
+```bash
+gh release create v4.1.0 --title "v4.1.0" --notes-file notes.md --verify-tag --latest
+```
+
+`--verify-tag` is what stops a typo in the tag name creating a new one.
 
 The version is bumped with `npm version <v> --no-git-tag-version`, so the lockfile follows. Tagging
 is a separate, deliberate step: the `v*` tag is what triggers the release workflow, which publishes
