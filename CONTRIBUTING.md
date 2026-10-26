@@ -95,10 +95,16 @@ on issues and pull requests alike.
   worth counting separately: it is the whole reason the suite exists.
 - **`stacked`** (PRs) — the base is another open PR. Merge them in order, and note that
   `Closes #n` is **inert** on such a PR: GitHub registers a closing reference only for a pull
-  request targeting the default branch, so the keyword does nothing until the base PR merges and
-  GitHub retargets this one to `main`. Check the issue actually closed; `gh pr view <n> --json
-  closingIssuesReferences` is what tells you, and an empty result on a merged stack means closing
-  it is yours to do.
+  request targeting the default branch. Merging the base PR does not fix that by itself — GitHub
+  retargets an open PR only when its base branch is *deleted*, and this repository has
+  `delete_branch_on_merge` off — so retarget it yourself before merging it:
+
+  ```bash
+  gh pr edit <n> --base main
+  ```
+
+  Then check the issue actually closed. `gh pr view <n> --json closingIssuesReferences` is what
+  tells you, and an empty result on a merged stack means closing it is yours to do.
 - **`severity/critical`** is reserved for the two failures that cost a consumer something they
   cannot see: a binding that silently stops emitting, and a bundle that gains a widget nobody
   imported.
