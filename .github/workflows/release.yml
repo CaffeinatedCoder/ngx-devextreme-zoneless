@@ -5,6 +5,11 @@ name: Release
 # exact workflow file in this repository, and provenance attestations are
 # generated automatically.
 #
+# Once npm has the package, the GitHub release is created from the reviewed notes in
+# release-notes/<version>.md, or as a draft from the changelog section when that file is
+# missing (.github/scripts/create-release.sh). Publishing to npm and nothing else is how
+# 4.0.0 and 4.1.0 ended up with no release page at all (#5).
+#
 # Release flow:  npm version <major|minor|patch>  (or edit package.json +
 # tag manually)  →  git push origin main --follow-tags
 
@@ -13,7 +18,7 @@ on:
     tags: ['v*']
 
 permissions:
-  contents: read
+  contents: write # Required to create the GitHub release
   id-token: write # Required for OIDC trusted publishing
 
 jobs:
@@ -57,3 +62,11 @@ jobs:
       - name: Publish to npm (trusted publishing)
         run: npm publish --access public
         working-directory: dist
+
+      # After the publish, never before: a release page for a version that failed to reach
+      # npm would be a worse lie than a missing one. A failure here leaves the package
+      # published and the release to be made by hand, which the log says.
+      - name: Create the GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: .github/scripts/create-release.sh "${GITHUB_REF_NAME#v}"

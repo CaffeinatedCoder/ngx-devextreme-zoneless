@@ -145,10 +145,11 @@ someone deciding whether to upgrade. The GitHub release is a condensed read of i
 
 ### The GitHub release
 
-**Creating it is a manual step.** The release workflow publishes to npm on a `v*` tag and does
-nothing else, so a tag plus a published package is not a release — 4.0.0 and 4.1.0 were on npm for
-weeks with no release page behind them. Its body is a condensed read of the version's changelog
-section, in the shape v3.0.0 set:
+**Its body is written by hand and published by the workflow.** `release-notes/<version>.md` is the
+release's body; once the tag's npm publish succeeds, `.github/scripts/create-release.sh` creates the
+release from that file verbatim. Write it in the release pull request so it is reviewed like
+anything else. The body is a condensed read of the version's changelog section, in the shape v3.0.0
+set:
 
 - A lede of two to four lines: what this release is for someone who has to decide.
 - An `npm i ngx-devextreme-zoneless@x.y.z` block.
@@ -158,11 +159,20 @@ section, in the shape v3.0.0 set:
   body is 89 lines over its section's 309, keeping 20 of 31 entries.
 - A closing line pointing at `CHANGELOG.md` for the measurements behind each claim.
 
+**When the file is missing the release is still created, as a draft** from the raw changelog
+section, with a line at the top saying to condense it. That is deliberate: publishing to npm and
+nothing else is how 4.0.0 and 4.1.0 came to sit on npm for weeks with no release page behind them,
+and a visibly unfinished draft is the failure this trades that silence for. The release takes
+"Latest" only when its version is the newest section of the changelog, so a patch on an older line
+cannot steal it.
+
+To check the script after changing it, run it against a stubbed `gh` on `PATH`:
+
 ```bash
-gh release create v4.1.0 --title "v4.1.0" --notes-file notes.md --verify-tag --latest
+.github/scripts/create-release.sh 4.1.0
 ```
 
-`--verify-tag` is what stops a typo in the tag name creating a new one.
+`--verify-tag`, which it passes, is what stops a typo in the tag name creating a new one.
 
 The version is bumped with `npm version <v> --no-git-tag-version`, so the lockfile follows. Tagging
 is a separate, deliberate step: the `v*` tag is what triggers the release workflow, which publishes

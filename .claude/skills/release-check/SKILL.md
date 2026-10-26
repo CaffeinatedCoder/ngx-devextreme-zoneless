@@ -1,6 +1,6 @@
 ---
 name: release-check
-description: The pre-release walk — gates green, changelog complete and honest about breaking changes, version consistent across package.json and the lockfile, README in step with the exported surface, then the tag that triggers publishing. Use before cutting a release, when preparing a version bump, or when checking whether a release is ready. Triggers on "release", "cut a version", "ready to publish", "prepare 3.0". Not for deciding what goes in — that is a scope question.
+description: The pre-release walk — gates green, changelog complete and honest about breaking changes, version consistent across package.json and the lockfile, README in step with the exported surface, the release notes written for the workflow to publish, then the tag that triggers publishing. Use before cutting a release, when preparing a version bump, or when checking whether a release is ready. Triggers on "release", "cut a version", "ready to publish", "prepare 3.0". Not for deciding what goes in — that is a scope question.
 ---
 
 # /release-check — what must be true before the tag
@@ -70,7 +70,27 @@ If this release adds support for a new Angular or DevExtreme major, the peer ran
 CI must have run green against it. A red run on a version bump is the compatibility net working —
 that is the product.
 
-## 7. Then, and only then
+## 7. Release notes, reviewed
+
+`release-notes/<version>.md` must exist, because the workflow publishes it verbatim once npm has
+the package. It is the condensed read of the version's changelog section — a lede, an `npm i`
+line, the consumer-facing sections at `##`, a closing link to `CHANGELOG.md` — in the shape
+`CONTRIBUTING.md`, "The GitHub release", describes. Write it in the release pull request, where it
+gets reviewed like anything else.
+
+```bash
+ls release-notes/$(node -p "require('./package.json').version").md
+```
+
+Missing it does not block the release: the workflow falls back to a **draft** built from the raw
+changelog section, which is deliberately visible rather than silent. But a draft is not a release
+page, so write the file. Check it locally against a stubbed `gh` if you have changed the script:
+
+```bash
+.github/scripts/create-release.sh <version>
+```
+
+## 8. Then, and only then
 
 Tag and push. The tag name (`v<version>`) is what the release workflow matches; the trusted-publisher
 configuration on npmjs.com matches on owner, repository name and workflow filename, so if any of
