@@ -1,0 +1,51 @@
+name: Enhancement
+description: A binding for a widget option this library doesn't cover yet.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What you're trying to do
+      description: The task, not the API. What do you write today, and what goes wrong under zoneless?
+    validations:
+      required: true
+  - type: input
+    id: widget
+    attributes:
+      label: Widget and option
+      description: The DevExtreme widget, and the option or method the state lives in.
+      placeholder: "dx-scheduler, currentView"
+    validations:
+      required: true
+  - type: input
+    id: proposal
+    attributes:
+      label: The binding you'd write
+      placeholder: "[(dxCurrentView)]=\"view\""
+  - type: dropdown
+    id: event
+    attributes:
+      label: Does the widget tell you when it changes?
+      description: >-
+        This decides the shape of the adapter. An option with an `optionChanged` can be bound
+        directly; a nested option or a method-backed one needs a method adapter and usually a
+        `contentReady` re-read. If you don't know, say so — establishing it from the installed
+        vendor sources is part of the work.
+      options:
+        - It's a plain option and fires optionChanged
+        - It has its own named event
+        - It changes beneath a nested option, or only a method reads it
+        - It changes silently, as far as I can tell
+        - I don't know
+    validations:
+      required: true
+  - type: dropdown
+    id: breaking
+    attributes:
+      label: Would it change an existing binding's behaviour?
+      options:
+        - No, it only adds
+        - Yes, an existing binding would behave differently
+        - I'm not sure
+    validations:
+      required: true

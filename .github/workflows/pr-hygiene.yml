@@ -1,0 +1,34 @@
+# Every PR carries one type label, a severity if it is a bug, and a closing reference to the issue
+# it resolves (CONTRIBUTING.md#issues); a `breaking` PR also carries a "### Breaking changes"
+# section in the major CHANGELOG.md is preparing (CONTRIBUTING.md#changelog). The rules live in
+# .github/scripts/pr-hygiene.sh, which reads the event payload and two text files of the checkout,
+# CHANGELOG.md and package.json: no token, nothing of the PR's executed, and runnable locally on a
+# saved event. The sparse checkout is in cone mode, which always includes the root's files.
+#
+# Triggered on label and description edits as well as pushes, so adding the missing label turns the
+# check green without a new commit. `pull_request`, not `pull_request_target`: a PR from a fork runs
+# with a read-only token and never sees a secret.
+
+name: PR hygiene
+
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize, labeled, unlabeled]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-hygiene-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Labels and issue link
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: .github/scripts
+
+      - run: .github/scripts/pr-hygiene.sh "$GITHUB_EVENT_PATH"

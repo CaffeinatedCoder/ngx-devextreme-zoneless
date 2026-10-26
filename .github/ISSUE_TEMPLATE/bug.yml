@@ -1,0 +1,102 @@
+name: Bug
+description: A binding does nothing, emits the wrong value, or throws where it should work.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The bugs that matter most here don't crash. The signal holds a value, the widget shows a
+        value, the types check — and the two have stopped talking to each other. If that's what you
+        found, say so below: a silent binding is this library's characteristic defect and it changes
+        how the fix is written.
+  - type: input
+    id: directive
+    attributes:
+      label: Directive or helper
+      description: The binding involved, and the widget it sits on.
+      placeholder: "[(dxGridState)] on dx-data-grid"
+    validations:
+      required: true
+  - type: dropdown
+    id: entry
+    attributes:
+      label: Entry point
+      multiple: true
+      options:
+        - ngx-devextreme-zoneless (main)
+        - ngx-devextreme-zoneless/core
+        - ngx-devextreme-zoneless/data-source
+        - ngx-devextreme-zoneless/editors
+        - ngx-devextreme-zoneless/navigation
+        - ngx-devextreme-zoneless/overlays
+        - ngx-devextreme-zoneless/data
+        - ngx-devextreme-zoneless/visualization
+        - ngx-devextreme-zoneless/forms
+        - I'm not sure
+    validations:
+      required: true
+  - type: input
+    id: versions
+    attributes:
+      label: Versions
+      description: This package, devextreme, devextreme-angular and @angular/core.
+      placeholder: "4.1.0 / devextreme 26.1.6 / @angular/core 22.2.3"
+    validations:
+      required: true
+  - type: dropdown
+    id: zoneless
+    attributes:
+      label: Change detection
+      description: zone.js is not installed in this workspace at all, so a zone-based app is a different configuration from the one the suite exercises.
+      options:
+        - Zoneless (provideZonelessChangeDetection)
+        - zone.js
+        - I'm not sure
+    validations:
+      required: true
+  - type: dropdown
+    id: failure
+    attributes:
+      label: How does it fail?
+      options:
+        - Silently. The binding does nothing, or stopped emitting, with no error anywhere
+        - Loudly. It throws, warns, or the widget shows error UI
+        - It emits, but the value is wrong
+        - I'm not sure
+    validations:
+      required: true
+  - type: dropdown
+    id: direction
+    attributes:
+      label: Which direction is broken?
+      multiple: true
+      options:
+        - Signal to widget (writing the signal doesn't move the widget)
+        - Widget to signal (the user's interaction doesn't reach the signal)
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: What you ran
+      description: The smallest standalone component that shows it — template and class. For remote data, include what the server answered.
+      render: typescript
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: What you got
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: Anything else
+      description: Console output, whether the widget was re-created, whether it reproduces with zone.js, and anything you already ruled out.

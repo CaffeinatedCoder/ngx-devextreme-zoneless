@@ -156,12 +156,44 @@ for a known region. Whole-file reads are for files you are about to reason about
 `node_modules/devextreme` FESM files whole — they are generated and enormous; grep for the symbol
 and read the surrounding lines.
 
+## Tracking
+Work is tracked as GitHub issues, not as lists in a doc, a memory or a chat reply. Open the issue
+before starting the work, and close it from the PR (`Closes #n`). The legend and the reasoning live
+in [CONTRIBUTING.md](CONTRIBUTING.md#labels); what has to be resident is the shape.
+
+- **Labels, on issues and PRs alike** (the `CodoMetis.ValueRanges` scheme): exactly one type
+  (`bug`, `enhancement`, `documentation`, `tests`, `chore`); every `entry/*` the change affects
+  (`core`, `data-source`, `editors`, `navigation`, `overlays`, `data`, `visualization`, `forms`);
+  the `area/*` concern (`binding-engine`, `wire-protocol`, `packaging`, `ssr`, `e2e`, `types`,
+  `release`, `vendor`); and `severity/*` on a bug. Add `silent` to a binding that does nothing, or
+  stops emitting, with no error anywhere — this library's characteristic defect, and the one whose
+  fix must carry the e2e that fails without it. Add `breaking` to anything that changes a
+  directive's name, model type or behaviour, `found-by/gate` or `found-by/vendor-bump` to what a
+  gate going red or a version move caught, and `stacked` to a PR whose base is another open PR
+- **PRs** carry their issue's labels and milestone, open with `Closes #n`, and describe the problem,
+  the change and what proves it — including that the test fails with the fix reverted.
+  `.github/scripts/pr-hygiene.sh` fails a PR with no type label, a bug with no `severity/*`, no
+  closing reference, or a `breaking` label without a `### Breaking changes` section in the major the
+  changelog is preparing. It reads the event payload plus `CHANGELOG.md` and `package.json`, so it
+  runs locally on a saved event
+- **Epics:** a release is an `epic` issue with a milestone of the same version (`5.0.0`), its work
+  attached as native sub-issues carrying the same milestone. A theme that spans releases is an
+  `epic` without a milestone; a finding it produces belongs to the release epic it ships in
+- **Roadmap:** the pinned `roadmap` issue (#2) holds every epic as a sub-issue, and repeats the legend
+- **`NEXT-STEPS.md` keeps what an issue cannot** — the measured findings, the decisions with their
+  reasons, the record of what each release closed. An open item in it that is actual work becomes an
+  issue; the finding behind it stays
+
 ## Commits
 - **Subject** — one line, conventional prefix (`feat:`, `fix:`, `docs:`, `test:`, `build:`, `ci:`),
   naming what changed. A breaking change takes `!` and a `BREAKING CHANGE:` footer
 - **Body** — prose wrapped at ~80 columns. What it owes: the reasoning, the alternative rejected,
   any number measured, and the finding the next reader would not guess. A body restating the diff is
   not worth writing
+- **A fix** adds `Found-By:` (`E2E`, `PRB`, `SSR`, `VT`, `VB`, `RV`, `IS`, `US`) and
+  `Defect-Class:` (`BIND`, `ADPT`, `WIRE`, `RMT`, `PKG`, `SSR`, `TYPE`) trailers, so the trailer and
+  the `found-by/*` label count the same finds from either side
+  ([CONTRIBUTING.md](CONTRIBUTING.md#commit-trailers))
 - **Close** with the trailer `Co-Authored-By: <model> <noreply@anthropic.com>` naming the model
   actually writing — the harness states the current name; never copy it from an earlier commit
 - The npm `version` is bumped with `npm version <v> --no-git-tag-version` so the lockfile follows;
@@ -192,6 +224,9 @@ a moved block leaves a pointer, never a copy.
   `docs/directives.md` — a directive not in them does not exist as far as users are concerned.
   README links into `docs/` are **absolute GitHub URLs** because `docs/` does not ship in the npm
   tarball and relative links would 404 on npmjs.com
+- `CONTRIBUTING.md` — the contributor contract: the quality bar, the label legend, the changelog
+  form, the commit trailers, and the AI-assistance disclosure. The human-facing twin of this file;
+  a rule belongs in one of them with a pointer from the other, never in both
 - `CHANGELOG.md` — every release. Breaking changes get their own section and say what a consumer has
   to change, not merely what moved
 - `NEXT-STEPS.md` — the working queue: what is open, what was verified, and the findings worth
