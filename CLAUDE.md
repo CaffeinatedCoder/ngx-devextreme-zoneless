@@ -210,7 +210,7 @@ wrong. **Project rules in this file always win over a skill.**
 - **`/protocol-case`** — extend loadOptions coverage: measure what the widget sends, serialize it,
   teach the stub's parser *and* its response shape, assert against `__stats`
 - **`/release-check`** — gates, changelog, version in both files, README parity, published-artifact
-  check, then the tag
+  check, the reviewed `release-notes/<version>.md` the workflow publishes, then the tag
 
 Path-triggered rules live in `.claude/rules/` and load with the tree they govern: `adapters.md` for
 the binding families, `e2e.md` for `e2e/` and `smoke/`, `wire-protocol.md` for the remote surface.
