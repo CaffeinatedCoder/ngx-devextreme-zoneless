@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security report
+    url: https://github.com/CaffeinatedCoder/ngx-devextreme-zoneless/security/advisories/new
+    about: Report a vulnerability privately. Please don't open a public issue for it.
+  - name: DevExtreme itself
+    url: https://supportcenter.devexpress.com/
+    about: A widget misbehaving under zone.js too is a vendor question, not one for this adapter layer.

@@ -170,6 +170,9 @@ exist to make the split explicit.
 | **[Binding semantics & type helpers](https://github.com/CaffeinatedCoder/ngx-devextreme-zoneless/blob/main/docs/semantics.md)** | The engine contract: `undefined` vs `null`, initial sync, echo suppression, debounce, teardown, the exported type helpers |
 
 Working on the package itself:
+[contributing](https://github.com/CaffeinatedCoder/ngx-devextreme-zoneless/blob/main/CONTRIBUTING.md)
+— the quality bar, how issues and pull requests are labelled, and the changelog
+form; and
 [development](https://github.com/CaffeinatedCoder/ngx-devextreme-zoneless/blob/main/docs/development.md)
 — builds, the smoke app's six screens, the e2e suite, the tree-shaking
 probe and the server-render measurement.

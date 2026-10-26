@@ -1,5 +1,16 @@
 # Changelog
 
+Every release of ngx-devextreme-zoneless, newest first. Versions follow
+[Semantic Versioning](https://semver.org/).
+
+A version's section is the GitHub release's notes, so it is written for someone
+deciding whether to upgrade. An entry opens with the surface it changes, says
+what a consumer has to do about it, and carries the number that was measured —
+because what this package claims is exactly as strong as what its suite
+demonstrates. [CONTRIBUTING.md](CONTRIBUTING.md#changelog) has the rules: the
+section order, the entry form, and why an entry here keeps its measurements
+where other projects send them to a guide.
+
 ## 4.1.0 (2026-10-25)
 
 ### Added
